@@ -167,9 +167,24 @@ endfunction
 
 
 
+
+
 //-----------------------------------------------------------
 // Deblocking Filter Module
 //-----------------------------------------------------------
+interface ILeftVector;
+  method Bit#(32) sub(Bit#(7) addr); 
+  method Action upd(Bit#(7) addr, Bit#(32) data);
+endinterface
+ 
+(*synthesize*)
+module mkLeftVector(ILeftVector);
+  RFile1#(Bit#(7),Bit#(32)) leftVector <- mkRFile1(0,95);
+  method sub = leftVector.sub;
+  method upd = leftVector.upd;
+endmodule
+
+
 
 
 (* synthesize *)
@@ -245,7 +260,7 @@ module mkDeblockFilter( IDeblockFilter );
 			       { 9,12,18 }, {10,13,20 }, {11,15,23 }, {13,17,25 }};
 
    Reg#(Vector#(64,Bit#(32))) workVector <- mkRegU();
-   Reg#(Vector#(96,Bit#(32))) leftVector <- mkRegU();
+   ILeftVector leftVector <- mkLeftVector();
    Reg#(Vector#(16,Bit#(32))) topVector  <- mkRegU();
 
    Reg#(Bool) startLastOutput <- mkReg(False);
@@ -254,6 +269,8 @@ module mkDeblockFilter( IDeblockFilter );
    Reg#(Bit#(2)) rowNum <- mkReg(0);
 
    RFile1#(Bit#(4),Tuple2#(Bit#(3),Bit#(3))) bSfile <- mkRFile1Full();
+
+   Reg#(Bit#(6)) cleanup_state <- mkReg(0);
 
 
    //-----------------------------------------------------------
@@ -447,7 +464,7 @@ module mkDeblockFilter( IDeblockFilter );
       Bit#(2) blockHor = {blockNum[2],blockNum[0]};
       Bit#(2) blockVer = {blockNum[3],blockNum[1]};
       Bit#(2) pixelVer = {pixelNum[3],pixelNum[2]};
-      Vector#(96,Bit#(32)) leftVectorNext = leftVector;
+      //Vector#(96,Bit#(32)) leftVectorNext = leftVector;
       Vector#(64,Bit#(32)) workVectorNext = workVector;
       Bool leftEdge = (blockNum[0]==0 && (blockNum[2]==0 || chromaFlag==1));
       if(blockNum==0 && pixelNum==0)
@@ -477,7 +494,7 @@ module mkDeblockFilter( IDeblockFilter );
 	       Bit#(32) pixelq = {xdata[3],xdata[2],xdata[1],xdata[0]};
 	       Bit#(32) pixelp;
 	       if(leftEdge)
-		  pixelp = leftVector[addrpLeft];
+		  pixelp = leftVector.sub(addrpLeft);
 	       else
 		  pixelp = workVector[addrpCurr];
 	       Bit#(64) result = {pixelq,pixelp};
@@ -492,11 +509,11 @@ module mkDeblockFilter( IDeblockFilter );
 			result = filter_input({pixelq,pixelp},chromaFlag==1,tpl_1(bSfile.sub((chromaFlag==0?blockNum:{blockNum[1:0],pixelVer[1],1'b0}))),alphaInternal,betaInternal,tc0Internal);
 		  end
 	       if(leftEdge)
-		  leftVectorNext[addrpLeft] = result[31:0];
+		  leftVector.upd(addrpLeft,result[31:0]);
 	       else
 		  workVectorNext[addrpCurr] = result[31:0];
 	       workVectorNext[addrq] = result[63:32];
-	       leftVector <= leftVectorNext;
+	 
 	       workVector <= workVectorNext;
 	       if(pixelNum==12 && (blockNum==15 || (blockNum==7 && chromaFlag==1)))
 		  begin
@@ -634,7 +651,7 @@ module mkDeblockFilter( IDeblockFilter );
 	       leftAddr = {1'b0,blockHor,blockVer,pixelVer};
 	    else
 	       leftAddr = {2'b10,blockHor,blockVer[0],pixelVer};
-	    Bit#(32) leftData = leftVector[leftAddr];
+	    Bit#(32) leftData = leftVector.sub(leftAddr);
 	    if(!(blockNum==3 || (blockNum==1 && chromaFlag==1)))
 	       begin
 		  if(chromaFlag==0)
@@ -685,44 +702,66 @@ module mkDeblockFilter( IDeblockFilter );
       outputingFinished <= False;
    endrule
 
+   rule cleanup_unroll ( process==Cleanup && currMbHor<zeroExtend(picWidth) && cleanup_state > 0 );
+     if(chromaFlag == 0)
+       begin
+         cleanup_state <= cleanup_state + 1;
+         if(cleanup_state + 1 == 0)
+           begin
+	     chromaFlag <= 1;
+             process <= Initialize;         
+           end
+         leftVector.upd(zeroExtend(cleanup_state), workVector[cleanup_state]);   
+       end
+     else
+       begin
+         if(cleanup_state + 1 == 32)
+           begin
+             cleanup_state <= 0;
+             chromaFlag <= 0;
+             process <= Passing;
+             Bit#(PicWidthSz) temp = truncate(currMbHor);
+             parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
+             left_intra <= curr_intra;
+             left_qpc <= curr_qpc;
+             left_qpy <= curr_qpy;
+             currMb <= currMb+1;
+             currMbHor <= currMbHor+1;
+             if(currMbVer==picHeight-1 && currMbHor==zeroExtend(picWidth-1))
+               begin
+                 outfifo.enq(EndOfFrame);
+               end	     
+           end 
+         else
+           begin
+             cleanup_state <= cleanup_state + 1;
+           end
+         Bit#(5) tempAddr = cleanup_state[4:0];
+         leftVector.upd({2'b10,tempAddr}, workVector[{tempAddr[4:3],1'b0,tempAddr[2:0]}]);
+       end
+   endrule
 
-   rule cleanup ( process==Cleanup && currMbHor<zeroExtend(picWidth) );
+   rule cleanup ( process==Cleanup && currMbHor<zeroExtend(picWidth) && cleanup_state == 0 );
       //$display( "TRACE Deblocking Filter: cleanup %0d %0d", blockNum, pixelNum);
       Bit#(2) blockHor = pixelNum[1:0];
       Bit#(2) blockVer = blockNum[1:0];
       Bit#(2) pixelVer = pixelNum[3:2];
       Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);
-      Vector#(96,Bit#(32)) leftVectorNext = leftVector;
+    
       if(blockNum==0)
-	 begin
-	    if(chromaFlag==0)
-	       begin
-		  for(Integer ii=0; ii<64; ii=ii+1)
-		     leftVectorNext[fromInteger(ii)] = workVector[fromInteger(ii)];
-		  chromaFlag <= 1;
-		  process <= Initialize;
-	       end
-	    else
-	       begin
-		  for(Integer ii=0; ii<32; ii=ii+1)
-		     begin
-			Bit#(5) tempAddr = fromInteger(ii);
-			leftVectorNext[{2'b10,tempAddr}] = workVector[{tempAddr[4:3],1'b0,tempAddr[2:0]}];
-		     end
-		  chromaFlag <= 0;
-		  process <= Passing;
-		  Bit#(PicWidthSz) temp = truncate(currMbHor);
-		  parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
-		  left_intra <= curr_intra;
-		  left_qpc <= curr_qpc;
-		  left_qpy <= curr_qpy;
-		  currMb <= currMb+1;
-		  currMbHor <= currMbHor+1;
-		  if(currMbVer==picHeight-1 && currMbHor==zeroExtend(picWidth-1))
-		     outfifo.enq(EndOfFrame);
-	       end
-	    leftVector <= leftVectorNext;
-	 end
+        begin
+          if(chromaFlag==0)
+	    begin
+	      leftVector.upd(0, workVector[0]);
+              cleanup_state <= cleanup_state + 1;
+	    end
+          else
+            begin            
+              Bit#(5) tempAddr = 0;
+              leftVector.upd({2'b10,tempAddr}, workVector[{tempAddr[4:3],1'b0,tempAddr[2:0]}]);
+              cleanup_state <= cleanup_state + 1;
+          end
+        end
       else if(blockNum < 8)
 	 begin
 	    Bit#(7) leftAddr;
@@ -730,7 +769,7 @@ module mkDeblockFilter( IDeblockFilter );
 	       leftAddr = {1'b0,blockHor,blockVer,pixelVer};
 	    else
 	       leftAddr = {2'b10,blockHor,blockVer[0],pixelVer};
-	    Bit#(32) leftData = leftVector[leftAddr];
+	    Bit#(32) leftData = leftVector.sub(leftAddr);
 	    if(chromaFlag==0)
 	       outfifo.enq(DFBLuma {ver:{(currMbHorT==0 ? currMbVer-1 : currMbVer),blockVer,pixelVer},hor:{(currMbHorT==0 ? picWidth-1 : currMbHorT-1),blockHor},data:leftData});
 	    else
@@ -763,8 +802,6 @@ module mkDeblockFilter( IDeblockFilter );
 	 end
    endrule
    
-
-
 
    
    

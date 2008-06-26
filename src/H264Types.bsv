@@ -33,6 +33,8 @@ Integer interpolator_memRespQ_size = 4;
 Integer deblockFilter_infifo_size = 32;
 Integer bufferControl_infifo_size = 2;
 
+Integer horizontal_pixels = 224;
+Integer vertical_pixels = 176;
 
 //-----------------------------------------------------------
 // 1 read port register file module
