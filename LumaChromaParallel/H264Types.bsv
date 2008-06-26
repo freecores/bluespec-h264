@@ -420,7 +420,7 @@ InterpolatorLoadReq deriving(Eq,Bits);
 
 typedef union tagged                
 {
- Bit#(32) IPLoadResp;
+  Bit#(32) IPLoadResp;
 }
 InterpolatorLoadResp deriving(Eq,Bits);
 

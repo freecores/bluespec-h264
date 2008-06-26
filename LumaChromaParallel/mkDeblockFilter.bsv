@@ -808,7 +808,7 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
                $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO data: %d, subblock(%0d, %0d) row: %0d, ",csStr,infifo.first(), blockHor, blockVer, pixelNum);
 	       if(blockNum != xdata.blockNum)
                  begin
-                   $display( "PARDEBLOCK(%s) ERROR: horizontal bsFIFO , subblock(%0d) expected subblock(%0d) ",csStr, blockNum,  xdata.blockNum);
+                   $display( "PARDEBLOCK(%s) ERROR %0d cyclels: horizontal bsFIFO , subblock(%0d) expected subblock(%0d) ",csStr, total_cycles,blockNum,  xdata.blockNum);
                  end 
 	    end
 	 tagged PBoutput .predOutput :

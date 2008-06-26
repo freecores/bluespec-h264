@@ -28,8 +28,22 @@ import IDeblockFilter::*;
 import mkDeblockFilter::*;
 import Connectable::*;
 
-(*synthesize*)
-module mkDeblockFilterParallel (IDeblockFilter);
+
+interface ParallelDeblockFilter;
+
+   // Interface for inter-module io
+   interface Put#(EntropyDecOT) ioinchroma;
+   interface Put#(EntropyDecOT) ioinluma;
+   interface Get#(DeblockFilterOT) ioout; 
+      
+   // Interface for module to memory
+   interface Client#(MemReq#(TAdd#(PicWidthSz,5),32),MemResp#(32)) mem_client_data;
+   interface Client#(MemReq#(PicWidthSz,13),MemResp#(13)) mem_client_parameter;
+     
+endinterface
+
+
+module mkDeblockFilterParallel (ParallelDeblockFilter);
   FIFO#(ChromaFlag) dataTags <- mkFIFO();
   FIFO#(ChromaFlag) parameterTags <- mkFIFO();   
   IDeblockFilter deblockfilterluma <- mkDeblockFilter(Luma);
@@ -62,7 +76,7 @@ module mkDeblockFilterParallel (IDeblockFilter);
   rule parameterReqLuma;
      MemReq#(PicWidthSz,13) req <- deblockfilterluma.mem_client_parameter.request.get;      
      parameterMemReqQ.enq(req);
-    
+     
      if(req matches tagged LoadReq .addrt)
        begin 
 	  parameterTags.enq(Luma);
@@ -103,11 +117,13 @@ module mkDeblockFilterParallel (IDeblockFilter);
        method Action put(MemResp#(32) dataIn);
 	  if(dataTags.first == Luma)
 	     begin
+		
 		deblockfilterluma.mem_client_data.response.put(dataIn);
                 dataTags.deq;	
 	     end
 	  else
 	     begin
+		
 		deblockfilterchroma.mem_client_data.response.put(dataIn);
                 dataTags.deq;	
 	     end	   
@@ -121,6 +137,7 @@ module mkDeblockFilterParallel (IDeblockFilter);
       method Action put(MemResp#(13) dataIn);
 	  if(parameterTags.first == Luma)
 	     begin
+		
 		deblockfilterluma.mem_client_parameter.response.put(dataIn);
                 parameterTags.deq;	
 	     end
@@ -136,7 +153,28 @@ module mkDeblockFilterParallel (IDeblockFilter);
   interface Get ioout = fifoToGet(outputFIFO);
 
  
-  interface Put ioin;
+  interface Put ioinchroma;
+     method Action put(EntropyDecOT dataIn);
+      
+      case (dataIn) matches
+        tagged  PBoutput .xdata: begin 
+           match {.chromaFlag, .vec} = xdata;   
+           if(chromaFlag == Chroma)
+              begin
+		 
+                 deblockfilterchroma.ioin.put(dataIn);
+              end
+        end
+       
+	 default:   begin
+		       deblockfilterchroma.ioin.put(dataIn);
+                    end
+      endcase  
+     endmethod 
+  endinterface  
+
+
+  interface Put ioinluma;
      method Action put(EntropyDecOT dataIn);
       
       case (dataIn) matches
@@ -144,19 +182,17 @@ module mkDeblockFilterParallel (IDeblockFilter);
            match {.chromaFlag, .vec} = xdata;   
            if(chromaFlag == Luma)
               begin
+		 
                  deblockfilterluma.ioin.put(dataIn);
               end
-           else 
-              begin
-                 deblockfilterchroma.ioin.put(dataIn);
-	      end
         end
        
 	 default:   begin
                        deblockfilterluma.ioin.put(dataIn);
-		       deblockfilterchroma.ioin.put(dataIn);
                     end
       endcase  
      endmethod 
   endinterface   
+
+ 
 endmodule

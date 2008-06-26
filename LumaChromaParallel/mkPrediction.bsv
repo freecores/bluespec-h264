@@ -165,7 +165,8 @@ module mkPrediction( IPrediction );
    //Common state
    FIFO#(EntropyDecOT)   infifo     <- mkSizedFIFO(prediction_infifo_size);
    FIFO#(InverseTransOT) infifo_ITB <- mkSizedFIFO(prediction_infifo_ITB_size);
-   FIFO#(EntropyDecOT)   outfifo    <- mkFIFO;
+   FIFO#(EntropyDecOT)   outfifochroma  <- mkFIFO;
+   FIFO#(EntropyDecOT)   outfifoluma    <- mkFIFO;
    Reg#(Bool)            passFlag   <- mkReg(True);
    Reg#(Bit#(4))         blockNum   <- mkReg(0);
    Reg#(Bit#(4))         pixelNum   <- mkReg(0);
@@ -197,6 +198,7 @@ module mkPrediction( IPrediction );
    Reg#(Vector#(4,InterBlockMv)) interLeftVal <- mkRegU();
    Reg#(Vector#(4,InterBlockMv)) interTopLeftVal <- mkRegU();
    FIFO#(MemReq#(TAdd#(PicWidthSz,2),32)) interMemReqQ <- mkFIFO;
+   
    Reg#(MemReq#(TAdd#(PicWidthSz,2),32)) interMemReqQdelay <- mkRegU();
    FIFO#(MemResp#(32))  interMemRespQ <- mkFIFO;
    Reg#(Bit#(3)) interReqCount <- mkReg(0);
@@ -212,7 +214,8 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(15)) interMvDiffTemp <- mkReg(0);
    FIFO#(Tuple2#(Bit#(15),Bit#(13))) interMvDiff <- mkFIFO;
    Reg#(Bit#(5)) interNewestMv <- mkReg(0);
-
+   
+   
    // Registers for pipelining the interStage rule
 
    Reg#(Bit#(3)) partWidthR <- mkRegU();
@@ -240,6 +243,7 @@ module mkPrediction( IPrediction );
    FIFO#(Tuple2#(Bit#(2),Bit#(2))) interBSfifo <- mkSizedFIFO(32);
    Reg#(Bool) interBSoutput <- mkReg(True);
    FIFO#(InterBlockMv) interOutBlockMvfifo <- mkSizedFIFO(8);
+   FIFO#(ChromaFlag) memReqTypeFIFO <- mkSizedFIFO(32);
    
    
    //Intra state
@@ -305,34 +309,37 @@ module mkPrediction( IPrediction );
 	 tagged NewUnit . xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());
 	       $display("ccl4newunit");
 	       $display("ccl4rbspbyte %h", xdata);
 	    end
 	 tagged SPSpic_width_in_mbs .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());	       
 	       picWidth <= xdata;
 	       interpolator.setPicWidth(xdata);
 	    end
 	 tagged SPSpic_height_in_map_units .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());
 	       picHeight <= xdata;
 	       interpolator.setPicHeight(xdata);
 	    end
 	 tagged PPSconstrained_intra_pred_flag .xdata :
 	    begin
 	       infifo.deq();
-	       ////outfifo.enq(infifo.first());
 	       ppsconstrained_intra_pred_flag <= xdata;
 	    end
 	 tagged SHfirst_mb_in_slice .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());
 	       firstMb   <= xdata;
 	       currMb    <= xdata;
 	       currMbHor <= xdata;
@@ -348,14 +355,16 @@ module mkPrediction( IPrediction );
 	 tagged EndOfFile :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
 	       $display( "INFO Prediction: EndOfFile reached" );
 	       //$finish(0);////////////////////////////////
 	    end
 	 default:
 	    begin
 	       infifo.deq();
-	       outfifo.enq(infifo.first());
+	       outfifoluma.enq(infifo.first());
+	       outfifochroma.enq(infifo.first());
 	    end
       endcase
    endrule
@@ -567,7 +576,8 @@ module mkPrediction( IPrediction );
 	    if(infifo_ITB.first() matches tagged IBTmb_qp .xdata)
 	       begin
 		  infifo_ITB.deq();
-		  outfifo.enq(IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
+		  outfifoluma.enq(IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
+		  outfifochroma.enq(IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
 		  outFirstQPFlag <= False;
 		  $display( "Trace Prediction: outputing outFirstQP %h %h %h", outBlockNum, outPixelNum, xdata);
 	       end
@@ -584,7 +594,8 @@ module mkPrediction( IPrediction );
 		  Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 		  Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
 		  Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
-		  outfifo.enq(PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+		  outfifoluma.enq(PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+		  outfifochroma.enq(PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 		  interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
 		  interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);
 		  $display( "Trace Prediction: outputing SkipMB bS %h %h %h %h", outBlockNum, outPixelNum, currMbHor, currMbVer);
@@ -593,7 +604,8 @@ module mkPrediction( IPrediction );
 	       begin
 		  interBSoutput <= True;
 		  outputVector = predictedfifo.first();
-		  outfifo.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+		  outfifoluma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+		  outfifochroma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
 		  outputFlag = 1;
 		  predictedfifo.deq();
 		  $display( "Trace Prediction: outputing SkipMB out %h %h %h", outBlockNum, outPixelNum, outputVector);
@@ -605,7 +617,8 @@ module mkPrediction( IPrediction );
 	       tagged IBTmb_qp .xdata :
 		  begin
 		     infifo_ITB.deq();
-		     outfifo.enq(tagged IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
+		     outfifoluma.enq(tagged IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
+		     outfifochroma.enq(tagged IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
 		     outFirstQPFlag <= False;
 		     $display( "Trace Prediction: outputing ITBmb_qp %h %h %h", outBlockNum, outPixelNum, xdata);
 		  end
@@ -615,7 +628,10 @@ module mkPrediction( IPrediction );
 			begin
 			   interBSoutput <= False;
 			   if(outstatefifo.first() != Inter)
-			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+			      begin
+			         outfifoluma.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+				 outfifochroma.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+			      end
 			   else
 			      begin
 				 interBSfifo.deq();
@@ -623,7 +639,8 @@ module mkPrediction( IPrediction );
 				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 				 Bit#(3) horBS = (tempHorBS==3 ? 4 : 2);
 				 Bit#(3) verBS = (tempVerBS==3 ? 4 : 2);
-				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+				 outfifoluma.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+				 outfifochroma.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 			      end
 			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, True);
 			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, True);
@@ -643,7 +660,8 @@ module mkPrediction( IPrediction );
 				 else
 				    outputVector[ii] = tempOutputValue[7:0];
 			      end
-			   outfifo.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+			   outfifoluma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+			   outfifochroma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
 			   infifo_ITB.deq();
 			   predictedfifo.deq();
 			   outputFlag = 1;
@@ -656,7 +674,10 @@ module mkPrediction( IPrediction );
 			begin
 			   interBSoutput <= False;
 			   if(outstatefifo.first() != Inter)
-			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+			      begin
+			         outfifoluma.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+				 outfifochroma.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
+			      end
 			   else
 			      begin
 				 interBSfifo.deq();
@@ -664,7 +685,8 @@ module mkPrediction( IPrediction );
 				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 				 Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
 				 Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
-				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+				 outfifoluma.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
+				 outfifochroma.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 			      end
 			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
 			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);
@@ -676,7 +698,8 @@ module mkPrediction( IPrediction );
 			   if(outPixelNum == 12)
 			      infifo_ITB.deq();
 			   outputVector = predictedfifo.first();
-			   outfifo.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+			   outfifoluma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
+			   outfifochroma.enq(tagged PBoutput tuple2(outChromaFlag,outputVector));
 			   outputFlag = 1;
 			   predictedfifo.deq();
 			   $display( "Trace Prediction: outputing ITBcoeffLevelZeros out %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), outputVector);
@@ -1368,13 +1391,20 @@ module mkPrediction( IPrediction );
 		  btTemp = IP8x8;
 		  mvhorTemp = tpl_1(interMvFile.sub({interIPMbPartNumTemp,2'b00}));
 		  mvverTemp = tpl_2(interMvFile.sub({interIPMbPartNumTemp,2'b00}));
+		  $display("PARDEBLOCK issuing luma");
 		  interpolator.request(IPLuma {refIdx:refIndex,hor:horTemp,ver:verTemp,mvhor:mvhorTemp,mvver:mvverTemp,bt:btTemp});
 	       end
 	    else
-	       interpolator.request(IPLuma {refIdx:refIndex,hor:horTemp,ver:verTemp,mvhor:mvhorTemp,mvver:mvverTemp,bt:btTemp});
+	       begin
+	     	  $display("PARDEBLOCK issuing luma");
+	          interpolator.request(IPLuma {refIdx:refIndex,hor:horTemp,ver:verTemp,mvhor:mvhorTemp,mvver:mvverTemp,bt:btTemp});
+	       end
 	 end
       else
-	 interpolator.request(IPChroma {refIdx:refIndex,uv:interIPStepCount[0],hor:horTemp,ver:truncate(verTemp>>1),mvhor:mvhorTemp,mvver:mvverTemp,bt:btTemp});
+	begin
+	   $display("PARDEBLOCK issuing Chroma");     
+	   interpolator.request(IPChroma {refIdx:refIndex,uv:interIPStepCount[0],hor:horTemp,ver:truncate(verTemp>>1),mvhor:mvhorTemp,mvver:mvverTemp,bt:btTemp});
+	end
       if(interIPSubMbPartNum >= truncate(numSubPart-1))
 	 begin
 	    interIPSubMbPartNum <= 0;
@@ -1398,7 +1428,7 @@ module mkPrediction( IPrediction );
 	    else
 	       interIPSubMbPartNum <= interIPSubMbPartNum+1;
 	 end
-      $display( "Trace Prediction: interIPProcessStep %h %h %h %h %h %h %h %h %h %h", interstate, interIPStepCount, interIPMbPartNum, interIPSubMbPartNum, refIndex, horTemp, verTemp, mvhorTemp, mvverTemp, pack(btTemp));
+      $display( "PARDEBLOCKTrace Prediction: interIPProcessStep %h %h %h %h %h %h %h %h %h %h", interstate, interIPStepCount, interIPMbPartNum, interIPSubMbPartNum, refIndex, horTemp, verTemp, mvhorTemp, mvverTemp, pack(btTemp));
    endrule
 
 
@@ -2272,12 +2302,35 @@ module mkPrediction( IPrediction );
       interface Get request  = fifoToGet(interMemReqQ);
       interface Put response = fifoToPut(interMemRespQ);
    endinterface
-   interface Client mem_client_buffer = interpolator.mem_client;
 
+   interface Client mem_client_buffer;
+      interface Get request;
+	 method ActionValue#(InterpolatorLoadReq) get();
+	    InterpolatorLoadReq req <- interpolator.mem_client.request.get();
+	    if(req matches tagged IPLoadLuma .data)
+	      begin
+		memReqTypeFIFO.enq(Luma);	     
+	      end
+	    else if(req matches tagged IPLoadChroma .data)
+	      begin
+		 memReqTypeFIFO.enq(Chroma);	     
+	      end
+	    return req;
+	 endmethod
+      endinterface
+      
+      interface Put response;
+         method Action put(InterpolatorLoadResp resp);
+            memReqTypeFIFO.deq();
+	    interpolator.mem_client.response.put(resp);
+	 endmethod
+      endinterface
+   endinterface
+     
    interface Put ioin  = fifoToPut(infifo);
    interface Put ioin_InverseTrans  = fifoToPut(infifo_ITB);
-   interface Get ioout = fifoToGet(outfifo);
-
+   interface Get iooutchroma = fifoToGet(outfifoluma);
+   interface Get iooutluma = fifoToGet(outfifochroma);
       
 endmodule
 
