@@ -713,7 +713,8 @@ module mkDeblockFilter( IDeblockFilter );
            begin
              if((blockVer == 3) && (columnToRowState == 3))
                begin
-                 process <= Cleanup;
+                 chromaFlagVer <= 1;
+                 process <= Initialize;
                end
              //check for last macro block         
 	     leftVector.upd({1'b0,blockVer,columnToRowState}, data_out);
@@ -723,7 +724,20 @@ module mkDeblockFilter( IDeblockFilter );
              // Only cleanup a single time after the chroma blocks
              if((blockHor == 3) && (blockVer[0] == 1) && (columnToRowState == 3))
                begin
-                 process <= Cleanup;
+                 $display( "TRACE Deblocking Filter: horizontal bsFIFO chroma completed");
+                 chromaFlagVer <= 0;
+                 Bit#(PicWidthSz) temp = truncate(currMbHor);
+                 parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
+                 currMb <= currMb+1;
+                 currMbHor <= currMbHor+1;
+                 if(currMbVer==picHeight-1 && currMbHor==zeroExtend(picWidth-1))
+                   begin
+                     process <= Cleanup;
+                   end
+                 else
+                   begin
+                     process <= Passing;
+                   end    
                end
              leftVector.upd({1'b1,blockHor[1],blockVer[0],columnToRowState}, data_out);
            end     
@@ -929,10 +943,15 @@ module mkDeblockFilter( IDeblockFilter );
         process <= Vertical;// we enter this state to wait for the vertical processing to complete
         if(chromaFlagHor == 1)
           begin
+            chromaFlagHor <= 0; 
             left_intra <= curr_intra;
             left_qpc <= curr_qpc;
             left_qpy <= curr_qpy;
           end
+        else 
+          begin
+            chromaFlagHor <= 1;
+          end 
         rowToColumnStoreBlock.enq(tuple2(blockNum,0));
       end
     else if(pixelNum == 3)
@@ -1112,32 +1131,11 @@ end
   endrule
 
 
-  rule cleanup ( process==Cleanup && currMbHor<zeroExtend(picWidth) );
+  rule cleanup ( process==Cleanup && currMbHor<zeroExtend(picWidth) ); //XXX
     $display( "TRACE Deblocking Filter: cleanup %0d", currMb);
-    Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);     
-    if(chromaFlagVer==0)
-      begin		    
-        chromaFlagVer <= 1;
-        chromaFlagHor <= 1;
-        process <= Initialize;
-        $display( "TRACE Deblocking Filter: horizontal bsFIFO luma completed");
-      end
-    else
-      begin
-        $display( "TRACE Deblocking Filter: horizontal bsFIFO chroma completed");
-        chromaFlagVer <= 0;
-        chromaFlagHor <= 0;
-        process <= Passing;
-        Bit#(PicWidthSz) temp = truncate(currMbHor);
-        parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
-        currMb <= currMb+1;
-        currMbHor <= currMbHor+1;
-        if(currMbVer==picHeight-1 && currMbHor==zeroExtend(picWidth-1))
-          begin
-            outfifo.enq(EndOfFrame);
-          end
-      end 	 	     
-   endrule
+    outfifo.enq(EndOfFrame);
+    process <= Passing;
+  endrule
   
    interface Client mem_client_data;
       interface Get request  = fifoToGet(dataMemReqQ);
@@ -1146,6 +1144,7 @@ end
 
    interface Client mem_client_parameter;
       interface Get request  = fifoToGet(parameterMemReqQ);
+
       interface Put response = fifoToPut(parameterMemRespQ);
    endinterface
 
