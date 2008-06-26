@@ -11,16 +11,16 @@ package H264Types;
 import Vector::*;
 import RegFile::*;
 
-typedef 6   PicWidthSz;//number of bits to represent the horizontal position of a MB
-typedef 6   PicHeightSz;//number of bits to represent the vertical position of a MB
-typedef 12  PicAreaSz;//number of bits to represent the 2D position of a MB (max 16)
-Bit#(PicWidthSz) maxPicWidthInMB=63;//(2^PicWidthSz)-1
+typedef 7   PicWidthSz;//number of bits to represent the horizontal position of a MB
+typedef 7   PicHeightSz;//number of bits to represent the vertical position of a MB
+typedef 14  PicAreaSz;//number of bits to represent the 2D position of a MB (max 16)
+Bit#(PicWidthSz) maxPicWidthInMB=127;//(2^PicWidthSz)-1
 
-Bit#(PicAreaSz) maxPicAreaInMB=12'b10000000000000;
-typedef 19  FrameBufferSz;//number of bits to address the frame buffer (5+PicAreaSz+6)
-typedef 4  MaxRefFrames;//max number of frames in the frame buffer
-Bit#(5) maxRefFrames=4;//max number of frames in the frame buffer
-Bit#(FrameBufferSz) frameBufferSize=19'h7ffff;//size of frame buffer ((maxRefFrames+2)*maxPicAreaInMB*1.5*64)
+Bit#(PicAreaSz) maxPicAreaInMB=14'b10000000000000;
+typedef 25  FrameBufferSz;//number of bits to address the frame buffer (5+PicAreaSz+6)
+typedef 16  MaxRefFrames;//max number of frames in the frame buffer
+Bit#(5) maxRefFrames=16;//max number of frames in the frame buffer
+Bit#(FrameBufferSz) frameBufferSize=25'b0110110000000000000000000;//size of frame buffer ((maxRefFrames+2)*maxPicAreaInMB*1.5*64)
 
 Integer entropyDec_infifo_size = 2;
 Integer inverseTrans_infifo_size = 8;
@@ -33,26 +33,22 @@ Integer interpolator_memRespQ_size = 4;
 Integer deblockFilter_infifo_size = 32;
 Integer bufferControl_infifo_size = 2;
 
-Integer horizontal_pixels = 224;
-Integer vertical_pixels = 176;
 
 //-----------------------------------------------------------
 // 1 read port register file module
 
 interface RFile1#(type idx_t, type d_t);
    method Action upd(idx_t x1, d_t x2);
-   method ActionValue#(d_t) sub(idx_t x1);
+   method d_t sub(idx_t x1);
 endinterface
 
 module mkRFile1#( idx_t lo, idx_t hi ) ( RFile1#(idx_t, d_t) )
    provisos (Bits#(idx_t, si),Bits#(d_t, sa));
    RegFile#(idx_t,d_t) rf <- mkRegFile(lo,hi);
-   RWire#(Bit#(0)) sched_hack <- mkRWire();
    method Action upd( idx_t index, d_t data );
       rf.upd( index, data );
    endmethod
-   method ActionValue#(d_t) sub( idx_t index );
-      sched_hack.wset(0);
+   method d_t sub( idx_t index );
       return rf.sub(index);
    endmethod
 endmodule
@@ -60,12 +56,10 @@ endmodule
 module mkRFile1Full( RFile1#(idx_t, d_t) )
    provisos (Bits#(idx_t, si),Bits#(d_t, sa),Bounded#(idx_t) );
    RegFile#(idx_t,d_t) rf <- mkRegFileFull();
-   RWire#(Bit#(0)) sched_hack <- mkRWire();
    method Action upd( idx_t index, d_t data );
       rf.upd( index, data );
    endmethod
-   method ActionValue#(d_t) sub( idx_t index );
-      sched_hack.wset(0);
+   method d_t sub( idx_t index );
       return rf.sub(index);
    endmethod
 endmodule

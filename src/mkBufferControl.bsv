@@ -1,7 +1,6 @@
 //**********************************************************************
 // Buffer Controller
 //----------------------------------------------------------------------
-// Sections 8.2.4 and 8.2.5 in spec
 //
 //
 
@@ -88,12 +87,12 @@ module mkShortTermPicList( ShortTermPicList );
    rule removing ( state==Remove || state==RemoveOutput || state==RemoveFound );
       if(state!=RemoveFound)
 	 begin
-	    Tuple2#(Bit#(16),Bit#(5)) temp <- rfile.sub(tempPic);
+	    Tuple2#(Bit#(16),Bit#(5)) temp = rfile.sub(tempPic);
 	    if(tpl_1(temp)==tempNum)
 	       begin
 		  state <= RemoveFound;
 		  if(state==RemoveOutput)
-		     returnList.enq(Valid (tpl_2(temp)));
+		     returnList.enq(Valid tpl_2(temp));
 	       end
 	    if(tempCount>=picCount)
 	       $display( "ERROR BufferControl: ShortTermPicList removing not found");
@@ -101,8 +100,7 @@ module mkShortTermPicList( ShortTermPicList );
       else
 	 begin
 	    Bit#(5) tempPrev = shortTermPicListPrev(tempPic);
-            let rData <- rfile.sub(tempPic);
-	    rfile.upd(tempPrev,rData);
+	    rfile.upd(tempPrev,rfile.sub(tempPic));
 	    if(tempCount==picCount)
 	       begin
 		  picCount <= picCount-1;
@@ -137,10 +135,10 @@ module mkShortTermPicList( ShortTermPicList );
    rule searching ( state matches tagged Search );
       if(tempCount<picCount)
 	 begin
-	    Tuple2#(Bit#(16),Bit#(5)) temp <- rfile.sub(tempPic);
+	    Tuple2#(Bit#(16),Bit#(5)) temp = rfile.sub(tempPic);
 	    if(tpl_1(temp)==tempNum)
 	       begin
-		  returnList.enq(Valid (tpl_2(temp)));
+		  returnList.enq(Valid tpl_2(temp));
 		  state <= Idle;
 	       end
 	    tempPic <= shortTermPicListPrev(tempPic);
@@ -153,8 +151,8 @@ module mkShortTermPicList( ShortTermPicList );
    rule listingAll ( state matches tagged ListAll );
       if(tempCount<picCount)
 	 begin
-	    Tuple2#(Bit#(16),Bit#(5)) temp <- rfile.sub(tempPic);
-	    returnList.enq(Valid (tpl_2(temp)));
+	    Tuple2#(Bit#(16),Bit#(5)) temp = rfile.sub(tempPic);
+	    returnList.enq(Valid tpl_2(temp));
 	    tempPic <= shortTermPicListPrev(tempPic);
 	    tempCount <= tempCount+1;
 	 end
@@ -275,8 +273,7 @@ module mkLongTermPicList( LongTermPicList );
    rule clearing ( state matches tagged Clear );
       if(tempPic<maxRefFrames)
 	 begin
-            let rData <- rfile.sub(tempPic);
-	    if(rData matches tagged Valid .data &&& picCount!=0)
+	    if(rfile.sub(tempPic) matches tagged Valid .data &&& picCount!=0)
 	       picCount <= picCount-1;
 	    rfile.upd(tempPic,Invalid);
 	    tempPic <= tempPic+1;
@@ -289,9 +286,9 @@ module mkLongTermPicList( LongTermPicList );
    rule listingAll ( state matches tagged ListAll );
       if(tempPic<maxRefFrames)
 	 begin
-	    Maybe#(Bit#(5)) temp <- rfile.sub(tempPic);
+	    Maybe#(Bit#(5)) temp = rfile.sub(tempPic);
 	    if(temp matches tagged Valid .data)
-	       returnList.enq(Valid (data));
+	       returnList.enq(Valid data);
 	    tempPic <= tempPic+1;
 	 end
       else
@@ -309,16 +306,14 @@ module mkLongTermPicList( LongTermPicList );
    endmethod
    
    method Action insert( Bit#(5) frameNum, Bit#(5) slot ) if(state matches tagged Idle);
-      let rData <- rfile.sub(frameNum); 
-      if(rData matches tagged Invalid)
+      if(rfile.sub(frameNum) matches tagged Invalid)
 	 picCount <= picCount+1;
-      rfile.upd(frameNum,Valid (slot));
+      rfile.upd(frameNum,Valid slot);
       //$display( "TRACE BufferControl: LongTermPicList insert %h %h %h", picCount, frameNum, slot);
    endmethod
    
    method Action remove( Bit#(5) frameNum ) if(state matches tagged Idle);
-      let rData <- rfile.sub(frameNum); 
-      if(rData matches tagged Invalid)
+      if(rfile.sub(frameNum) matches tagged Invalid)
 	 $display( "ERROR BufferControl: LongTermPicList removing not found");
       else
 	 picCount <= picCount-1;
@@ -333,8 +328,7 @@ module mkLongTermPicList( LongTermPicList );
    endmethod
    
    method Action search( Bit#(5) frameNum ) if(state matches tagged Idle);
-      let rData <- rfile.sub(frameNum); 
-      returnList.enq(rData);
+      returnList.enq(rfile.sub(frameNum));
       //$display( "TRACE BufferControl: LongTermPicList search %h %h", picCount, frameNum);
    endmethod
    
@@ -785,17 +779,15 @@ module mkBufferControl( IBufferControl );
       if(shortTermPicList.resultSlot() matches tagged Valid .xdata)//////////////////////////////////////////////////////////////////////////////////////////
 	 begin
 	    shortTermPicList.deq();
-            let picListData <- refPicList.sub(refIdx); 
-	    tempSlot <= picListData;
+	    tempSlot <= refPicList.sub(refIdx);
 	    refPicList.upd(refIdx,xdata);
 	    refPicListCount <= refIdx+1;
 	    tempSlot2 <= xdata;
 	 end
       else if(longTermPicList.resultSlot() matches tagged Valid .xdata)/////////////////////////////////////////////////////////////////////////////////////may get stuck?
 	 begin
-            let picListData <- refPicList.sub(refIdx);
 	    longTermPicList.deq();
-	    tempSlot <= picListData;
+	    tempSlot <= refPicList.sub(refIdx);
 	    refPicList.upd(refIdx,xdata);
 	    refPicListCount <= refIdx+1;
 	    tempSlot2 <= xdata;
@@ -804,8 +796,7 @@ module mkBufferControl( IBufferControl );
 	 begin
 	    if(refPicListCount<num_ref_idx_l0_active && tempSlot!=tempSlot2)
 	       begin
-                  let picListData <- refPicList.sub(refPicListCount); 
-		  tempSlot <= picListData;
+		  tempSlot <= refPicList.sub(refPicListCount);
 		  refPicList.upd(refPicListCount,tempSlot);
 		  refPicListCount <= refPicListCount+1;
 	       end
@@ -883,7 +874,7 @@ module mkBufferControl( IBufferControl );
       if(loadRespQ1.first() matches tagged FBLoadResp .xdata)
 	 begin
 	    loadRespQ1.deq();
-	    outfifo.enq(YUV (xdata));
+	    outfifo.enq(YUV xdata);
 	    if(outRespCount == {1'b0,frameinmb,6'b000000}+{2'b00,frameinmb,5'b00000}-1)
 	       outputframedone <= True;
 	    outRespCount <= outRespCount+1;
@@ -919,7 +910,7 @@ module mkBufferControl( IBufferControl );
 
    rule interLumaReq ( inLoadReqQ.first() matches tagged IPLoadLuma .reqdata &&& !lockInterLoads );
       inLoadReqQ.deq();
-      Bit#(5) slot <- refPicList.sub(zeroExtend(reqdata.refIdx));
+      Bit#(5) slot = refPicList.sub(zeroExtend(reqdata.refIdx));
       Bit#(FrameBufferSz) addrBase = (zeroExtend(slot)*zeroExtend(frameinmb)*3)<<5;
       Bit#(TAdd#(PicAreaSz,6)) addr = {(zeroExtend(reqdata.ver)*zeroExtend(picWidth)),2'b00}+zeroExtend(reqdata.hor);
       inLoadOutOfBounds.enq({reqdata.horOutOfBounds,(reqdata.hor==0 ? 0 : 1)});
@@ -929,8 +920,8 @@ module mkBufferControl( IBufferControl );
 
 
    rule interChromaReq ( inLoadReqQ.first() matches tagged IPLoadChroma .reqdata &&& !lockInterLoads );
-      inLoadReqQ.deq();     
-      Bit#(5) slot <- refPicList.sub(zeroExtend(reqdata.refIdx));
+      inLoadReqQ.deq();
+      Bit#(5) slot = refPicList.sub(zeroExtend(reqdata.refIdx));
       Bit#(FrameBufferSz) addrBase = (zeroExtend(slot)*zeroExtend(frameinmb)*3)<<5;
       Bit#(TAdd#(PicAreaSz,6)) chromaOffset = {frameinmb,6'b000000};
       Bit#(TAdd#(PicAreaSz,4)) vOffset = 0;
@@ -950,7 +941,7 @@ module mkBufferControl( IBufferControl );
       else if(inLoadOutOfBounds.first() == 2'b11)
 	 inLoadRespQ.enq(IPLoadResp ({data[31:24],data[31:24],data[31:24],data[31:24]}));
       else
-	 inLoadRespQ.enq(IPLoadResp (data));
+	 inLoadRespQ.enq(IPLoadResp data);
       inLoadOutOfBounds.deq();
       //$display( "Trace BufferControl: interResp %h %h", inLoadOutOfBounds.first(), data);
    endrule

@@ -1,7 +1,6 @@
 //**********************************************************************
 // interpolator implementation
 //----------------------------------------------------------------------
-// Section 8.4.2.2 in spec
 //
 //
 
@@ -450,7 +449,7 @@ module mkInterpolator( Interpolator );
       Vector#(4,Bit#(15)) readdata = replicate(0);
       if(yfracl==0)
 	 begin
-	    readdata <- workFile.sub({(1-workFileFlag),1'b0,work2VerNum[1],work2HorNum,work2VerNum[0]});
+	    readdata = workFile.sub({(1-workFileFlag),1'b0,work2VerNum[1],work2HorNum,work2VerNum[0]});
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       tempResult8[ii] = (readdata[ii])[12:5];
 	    resultFile.upd({work2VerNum[1],work2HorNum,work2VerNum[0]},tempResult8);
@@ -476,7 +475,7 @@ module mkInterpolator( Interpolator );
 	 end
       else if(xfracl==0 || xfracl==2)//vertical interpolation
 	 begin
-	    readdata <- workFile.sub({(1-workFileFlag),work2VerNum,work2HorNum[0]});
+	    readdata = workFile.sub({(1-workFileFlag),work2VerNum,work2HorNum[0]});
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       begin
 		  tempResult8[ii] = interpolate15to8(work2Vector15[ii],work2Vector15[ii+4],work2Vector15[ii+8],work2Vector15[ii+12],work2Vector15[ii+16],readdata[ii]);
@@ -526,7 +525,7 @@ module mkInterpolator( Interpolator );
 	    offset = offset-2;
 	    if(yfracl == 2)
 	       begin
-		  readdata <- workFile.sub({(1-workFileFlag),work2VerNum[2:0],work2HorNum});
+		  readdata = workFile.sub({(1-workFileFlag),work2VerNum[2:0],work2HorNum});
 		  for(Integer ii=0; ii<8; ii=ii+1)
 		     work2Vector15Next[ii] = work2Vector15[ii+4];
 		  for(Integer ii=0; ii<4; ii=ii+1)
@@ -544,8 +543,8 @@ module mkInterpolator( Interpolator );
 		     end
 	       end
 	    else
-	       begin                  
-		  Vector#(4,Bit#(8)) readdata8 <- storeFile.sub({(1-workFileFlag),work2VerNum[2:0],work2HorNum});
+	       begin
+		  Vector#(4,Bit#(8)) readdata8 = storeFile.sub({(1-workFileFlag),work2VerNum[2:0],work2HorNum});
 		  for(Integer ii=0; ii<8; ii=ii+1)
 		     work2Vector8Next[ii] = work2Vector8[ii+4];
 		  for(Integer ii=0; ii<4; ii=ii+1)
@@ -565,7 +564,7 @@ module mkInterpolator( Interpolator );
 		     verOffset = reqdata.offset;
 		  else
 		     verOffset = reqdata.offset+1;
-		  readdata <- workFile.sub({(1-workFileFlag),work2VerNum[2:0],(work2HorNum-2+(verOffset==0?0:1))});
+		  readdata = workFile.sub({(1-workFileFlag),work2VerNum[2:0],(work2HorNum-2+(verOffset==0?0:1))});
 		  for(Integer ii=0; ii<4; ii=ii+1)
 		     begin
 			Bit#(2) offsetplusii = verOffset+fromInteger(ii);
@@ -748,8 +747,7 @@ module mkInterpolator( Interpolator );
 
    rule work2Chroma ( reqregWork2 matches tagged Valid .vdata &&& vdata matches tagged IPWChroma .reqdata &&& !work2Done &&& !work8x8Done );
       Vector#(16,Bit#(1)) resultReadyNext = resultReady;
-      Vector#(4,Bit#(8)) resultData <- storeFile.sub({(1-workFileFlag),1'b0,work2VerNum[1],work2HorNum,work2VerNum[0]}); 
-      resultFile.upd({work2VerNum[1],work2HorNum,work2VerNum[0]},resultData);
+      resultFile.upd({work2VerNum[1],work2HorNum,work2VerNum[0]},storeFile.sub({(1-workFileFlag),1'b0,work2VerNum[1],work2HorNum,work2VerNum[0]}));
       resultReadyNext[{work2VerNum[1],work2HorNum,work2VerNum[0]}] = 1;
       work2HorNum <= work2HorNum+1;
       if(work2HorNum == 3)
@@ -769,8 +767,7 @@ module mkInterpolator( Interpolator );
 
 
   rule outputing( !outDone && resultReady[{outBlockNum[1],outPixelNum,outBlockNum[0]}]==1 );
-      Vector#(4,Bit#(8)) outputData <- resultFile.sub({outBlockNum[1],outPixelNum,outBlockNum[0]});
-      outfifo.enq(outputData);
+      outfifo.enq(resultFile.sub({outBlockNum[1],outPixelNum,outBlockNum[0]}));
       outPixelNum <= outPixelNum+1;
       if(outPixelNum == 3)
 	 begin
@@ -785,7 +782,7 @@ module mkInterpolator( Interpolator );
    rule switching( work1Done && (work2Done || reqregWork2==Invalid) && !work8x8Done);
       work1Done <= False;
       work2Done <= False;
-      reqregWork2 <= (Valid (reqfifoWork1.first()));
+      reqregWork2 <= (Valid reqfifoWork1.first());
       workFileFlag <= 1-workFileFlag;
       reqfifoWork1.deq();
       $display( "Trace interpolator: switching %h %h", outBlockNum, outPixelNum);
@@ -798,7 +795,7 @@ module mkInterpolator( Interpolator );
       resultReady <= replicate(0);
       work1Done <= False;
       work2Done <= False;
-      reqregWork2 <= (Valid (reqfifoWork1.first()));
+      reqregWork2 <= (Valid reqfifoWork1.first());
       workFileFlag <= 1-workFileFlag;
       reqfifoWork1.deq();
       $display( "Trace interpolator: switching8x8 %h %h", outBlockNum, outPixelNum);
