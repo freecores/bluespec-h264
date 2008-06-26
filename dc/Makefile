@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for dc-synth
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.1 2008-06-26 17:58:25 jamey.hicks Exp $
+# $Id: Makefile,v 1.2 2008-06-26 17:58:29 jamey.hicks Exp $
 #
 # This makefile will use Synopsys Design Compiler to synthesize
 # your RTL into a gate-level verilog netlist.
@@ -44,6 +44,8 @@ bscsrcs = \
 	$(bsrcdir)/mkPrediction.v \
         $(bsrcdir)/mkDeblockFilter.v \
         $(bsrcdir)/mkBufferControl.v \
+        $(bsrcdir)/mkInterpolator.v \
+        $(bsrcdir)/mkbSVector.v \
         $(bsrcdir)/mkLeftVector.v \
         $(bsrcdir)/mkTopVector.v \
         $(bsrcdir)/mkWorkVectorHor.v \
