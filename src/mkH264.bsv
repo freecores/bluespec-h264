@@ -46,8 +46,8 @@ module mkH264( IH264 );
    mkConnection( entropydec.ioout_InverseTrans, inversetrans.ioin );
    mkConnection( entropydec.ioout, prediction.ioin );
    mkConnection( inversetrans.ioout, prediction.ioin_InverseTrans );
-   Empty predictionDeblockConnection <- mkEntropyTee(prediction.ioout, deblockfilter.ioin,"PREDEB: ");
-   Empty deblockBuffercontrolConnection <- mkDeblockTee( deblockfilter.ioout, buffercontrol.ioin, "DEBBUF: " );
+   Empty predictionDeblockConnection <- mkEntropyTee(prediction.ioout, deblockfilter.ioin,"\nPREDEB: ");
+   Empty deblockBuffercontrolConnection <- mkDeblockTee( deblockfilter.ioout, buffercontrol.ioin, "\nDEBBUF: " );
 
    // Interface to input generator
    interface ioin = nalunwrap.ioin;
