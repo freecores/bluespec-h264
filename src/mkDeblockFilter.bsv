@@ -382,6 +382,7 @@ module mkDeblockFilter( IDeblockFilter );
  
    // Debugging register
    Reg#(Bit#(32)) fifo_full_count <- mkReg(0);
+   Reg#(Bit#(32)) fifo_empty_count <- mkReg(0);
    Reg#(Bit#(32)) total_cycles <- mkReg(0);
 
    //-----------------------------------------------------------
@@ -391,6 +392,13 @@ module mkDeblockFilter( IDeblockFilter );
      total_cycles <= total_cycles + 1;
    endrule
 
+   rule emptyFIFO;
+     if(!infifo.notEmpty)
+       begin
+          fifo_empty_count <= fifo_empty_count + 1;
+          $display("DEBLOCK FIFO EMPTY: %d of %d",fifo_empty_count, total_cycles); 
+       end   
+   endrule
 
    rule checkFIFO ( True );
       $display( "Trace DeblockFilter: checkFIFO %h cycle: %d", infifo.first(), total_cycles );
@@ -399,7 +407,7 @@ module mkDeblockFilter( IDeblockFilter );
         begin
           fifo_full_count <= fifo_full_count + 1;
           $display("DEBLOCK FIFO FULL: %d of %d",fifo_full_count, total_cycles); 
-        end 
+        end       
    endrule
 
    rule memReqMergeRowToColumnConversion;
