@@ -28,6 +28,8 @@ typedef union tagged
 InterpolatorWT deriving(Eq,Bits);
 
 
+
+
 //-----------------------------------------------------------
 // Helper functions
 
@@ -59,8 +61,10 @@ endfunction
 (* synthesize *)
 module mkInterpolator( Interpolator );
    
-   FIFO#(InterpolatorIT) reqfifoLoad <- mkSizedFIFO(interpolator_reqfifoLoad_size);
-   FIFO#(InterpolatorWT) reqfifoWork1 <- mkSizedFIFO(interpolator_reqfifoWork_size);
+   FIFO#(InterpolatorIT) reqfifoLoad <- mkSizedFIFO(interpolator_reqfifoLoad_size);  // This fifo takes in motion vector
+                                                                                     // pixel requests.
+   FIFO#(InterpolatorWT) reqfifoWork1 <- mkSizedFIFO(interpolator_reqfifoWork_size); // This is where the memory responses
+                                                                                     // come from
    Reg#(Maybe#(InterpolatorWT)) reqregWork2 <- mkReg(Invalid);
    FIFO#(Vector#(4,Bit#(8))) outfifo <- mkFIFO;
    Reg#(Bool) endOfFrameFlag <- mkReg(False);
@@ -152,6 +156,8 @@ module mkInterpolator( Interpolator );
       Bool verFirst = twoStage || (yfracl==2&&(xfracl==1||xfracl==3));
       Bit#(2) loadHorNumMax = (reqdata.bt==IP8x8||reqdata.bt==IP8x4 ? 1 : 0) + (horInter ? 2 : (offset2==0 ? 0 : 1));
       Bit#(4) loadVerNumMax = (reqdata.bt==IP8x8||reqdata.bt==IP4x8 ? 7 : 3) + (verInter ? 5 : 0);
+      // It would appear that we are collecting memory requests here, or at least we're adjusting 
+      // the memory addresses.
       if(verFirst)
 	 begin
 	    if(loadVerNum < loadVerNumMax)
@@ -243,6 +249,7 @@ module mkInterpolator( Interpolator );
 	    else
 	       horAddr = truncate(horTemp>>2);
 	 end
+
       if(reqdata.mvver[11]==1 && zeroExtend(0-reqdata.mvver[11:3])>verTemp)
 	 verAddr = 0;
       else
@@ -253,6 +260,7 @@ module mkInterpolator( Interpolator );
 	    else
 	       verAddr = truncate(verTemp);
 	 end
+
       memReqQ.enq(IPLoadChroma {refIdx:reqdata.refIdx,uv:reqdata.uv,horOutOfBounds:horOut,hor:horAddr,ver:verAddr});
       Bit#(2) loadHorNumMax = (reqdata.bt==IP4x8||reqdata.bt==IP4x4 ? (offset[1]==0||(xfracc==0&&offset!=3) ? 0 : 1) : ((reqdata.bt==IP16x16||reqdata.bt==IP16x8 ? 1 : 0) + (xfracc==0&&offset==0 ? 0 : 1)));
       Bit#(4) loadVerNumMax = (reqdata.bt==IP16x16||reqdata.bt==IP8x16 ? 7 : (reqdata.bt==IP16x8||reqdata.bt==IP8x8||reqdata.bt==IP4x8 ? 3 : 1)) + (yfracc==0 ? 0 : 1);
@@ -278,8 +286,8 @@ module mkInterpolator( Interpolator );
       let yfracl = reqdata.yFracL;
       let offset = reqdata.offset;
       let blockT = reqdata.bt;
-      Bool twoStage = (xfracl==1||xfracl==3) && (yfracl==1||yfracl==3);
-      Vector#(20,Bit#(8)) work1Vector8Next = work1Vector8;
+      Bool twoStage = (xfracl==1||xfracl==3) && (yfracl==1||yfracl==3); // are we dealing with a quarter sample
+      Vector#(20,Bit#(8)) work1Vector8Next = work1Vector8; // This must die.
       if(memRespQ.first() matches tagged IPLoadResp .tempreaddata)
 	 begin
 	    memRespQ.deq();
@@ -317,11 +325,11 @@ module mkInterpolator( Interpolator );
 			      Bit#(4) tempIndex = fromInteger(ii) + 8 - zeroExtend(offset);
 			      work1Vector8Next[tempIndex] = readdata[ii];
 			   end
-			for(Integer ii=0; ii<4; ii=ii+1)
+			for(Integer ii=0; ii<4; ii=ii+1) // horizontal filtration step.
 			   begin
 			      tempResult15[ii] = interpolate8to15(work1Vector8Next[ii],work1Vector8Next[ii+1],work1Vector8Next[ii+2],work1Vector8Next[ii+3],work1Vector8Next[ii+4],work1Vector8Next[ii+5]);
 			      tempResult8[ii] = clip1y10to8(truncate((tempResult15[ii]+16)>>5));
-			      if(xfracl == 1)
+			      if(xfracl == 1) // Seems to be averaging the quarter samples.
 				 tempResult8[ii] = truncate(({1'b0,tempResult8[ii]} + {1'b0,work1Vector8Next[ii+2]} + 1) >> 1);
 			      else if(xfracl == 3)
 				 tempResult8[ii] = truncate(({1'b0,tempResult8[ii]} + {1'b0,work1Vector8Next[ii+3]} + 1) >> 1);
@@ -357,11 +365,11 @@ module mkInterpolator( Interpolator );
 	    else if(work1Stage == 0)//vertical interpolation
 	       begin
 		  offset = offset + (xfracl==3&&(yfracl==1||yfracl==3) ? 1 : 0);
-		  for(Integer ii=0; ii<4; ii=ii+1)
+		  for(Integer ii=0; ii<4; ii=ii+1) // apply the horizontal filtration step.
 		     tempResult15[ii] = interpolate8to15(work1Vector8[ii],work1Vector8[ii+4],work1Vector8[ii+8],work1Vector8[ii+12],work1Vector8[ii+16],readdata[ii]);
-		  for(Integer ii=0; ii<16; ii=ii+1)
-		     work1Vector8Next[ii] = work1Vector8[ii+4];
-		  for(Integer ii=0; ii<4; ii=ii+1)
+		  for(Integer ii=0; ii<16; ii=ii+1) // advances the work vector
+		     work1Vector8Next[ii] = work1Vector8[ii+4]; 
+		  for(Integer ii=0; ii<4; ii=ii+1) // assigns the new work vector value
 		     work1Vector8Next[ii+16] = readdata[ii];
 		  Bit#(2) workHorNumMax = (blockT==IP8x8||blockT==IP8x4 ? 1 : 0) + (yfracl==2 ? 2 : (offset==0 ? 0 : 1));
 		  Bit#(4) workVerNumMax = (blockT==IP8x8||blockT==IP4x8 ? 7 : 3) + 5;
@@ -648,6 +656,8 @@ module mkInterpolator( Interpolator );
 		  work1Vector8Next[ii] = readdata[ii];
 	       end
 	    tempWork8[4] = readdata[offset];
+
+            // deals with the row major offsets
 	    if((blockT==IP16x8 || blockT==IP16x16) && work1HorNum==(xfracc==0&&offset==0 ? 1 : 2))
 	       begin
 		  for(Integer ii=0; ii<5; ii=ii+1)
@@ -671,6 +681,7 @@ module mkInterpolator( Interpolator );
 		  for(Integer ii=0; ii<5; ii=ii+1)
 		     tempPrev8[ii] = tempWork8[ii];
 	       end
+            // Apply filter?
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       begin
 		  Bit#(14) tempVal = zeroExtend((8-xfracc))*zeroExtend((8-yfracc))*zeroExtend(tempPrev8[ii]);
@@ -679,6 +690,7 @@ module mkInterpolator( Interpolator );
 		  tempVal = tempVal + zeroExtend(xfracc)*zeroExtend(yfracc)*zeroExtend(tempWork8[ii+1]);
 		  tempResult8[ii] = truncate((tempVal+32)>>6);
 	       end
+
 	    if(work1VerNum > 0 || yfracc==0)
 	       begin
 		  if(blockT==IP4x8 || blockT==IP4x4)
@@ -779,6 +791,7 @@ module mkInterpolator( Interpolator );
    endrule
 
 
+   // These two rules complete the processing step, and 
    rule switching( work1Done && (work2Done || reqregWork2==Invalid) && !work8x8Done);
       work1Done <= False;
       work2Done <= False;
@@ -789,6 +802,7 @@ module mkInterpolator( Interpolator );
    endrule
    
 
+   // this rule is kind of one of the last to run   
    rule switching8x8( work1Done && (work2Done || reqregWork2==Invalid) && work8x8Done && outDone);
       outDone <= False;
       work8x8Done <= False;
