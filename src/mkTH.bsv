@@ -17,6 +17,7 @@ import mkFrameBuffer::*;
 import mkInputGen::*;
 import mkFinalOutput::*;
 import mkH264::*;
+import MemoryTee::*;
 
 import Connectable::*;
 import GetPut::*;
@@ -58,7 +59,7 @@ module mkTH( Empty );
    mkConnection( h264.mem_clientP_inter, memP_inter.mem_server );
    mkConnection( h264.mem_clientD_data, memD_data.mem_server );
    mkConnection( h264.mem_clientD_parameter, memD_parameter.mem_server );
-   mkConnection( h264.buffer_client_load1, framebuffer.server_load1 );
+   Empty memT1 <- mkMemoryTee( h264.buffer_client_load1, framebuffer.server_load1, "MEMT1" );
    mkConnection( h264.buffer_client_load2, framebuffer.server_load2 );
    mkConnection( h264.buffer_client_store, framebuffer.server_store );
    mkConnection( h264.ioout, finaloutput.ioin );

@@ -37,7 +37,7 @@ module mkMemED(IMemED#(index_size,data_size))
    endrule
 
    rule reading ( reqQ.first() matches tagged LoadReq .addrt );
-      respQ.enq( LoadResp rfile.sub(addrt) );
+      respQ.enq( tagged LoadResp (rfile.sub(addrt)) );
       reqQ.deq();
    endrule
    

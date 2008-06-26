@@ -64,7 +64,7 @@ module mkFrameBuffer( IFrameBuffer );
    rule loading1 ( loadReqQ1.first() matches tagged FBLoadReq .addrt );
       if(addrt<frameBufferSize)
 	 begin
-	    loadRespQ1.enq( FBLoadResp rfile2.load1(addrt) );
+	    loadRespQ1.enq( tagged FBLoadResp rfile2.load1(addrt) );
 	    loadReqQ1.deq();
 	 end
       else
@@ -74,7 +74,7 @@ module mkFrameBuffer( IFrameBuffer );
    rule loading2 ( loadReqQ2.first() matches tagged FBLoadReq .addrt );
       if(addrt<frameBufferSize)
 	 begin
-	    loadRespQ2.enq( FBLoadResp rfile2.load2(addrt) );
+	    loadRespQ2.enq( tagged FBLoadResp rfile2.load2(addrt) );
 	    loadReqQ2.deq();
 	 end
       else

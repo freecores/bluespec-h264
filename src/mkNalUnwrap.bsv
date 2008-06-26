@@ -79,7 +79,7 @@ module mkNalUnwrap( INalUnwrap );
 	 end
       else if(zerocount==0)
 	 begin
-	    outfifo.enq(RbspByte bufferc);
+	    outfifo.enq(tagged RbspByte bufferc);
 	    $display("ccl1rbspbyte %h", bufferc);
 	    bufferc  <= bufferb;
 	    bufferb  <= buffera;
@@ -89,7 +89,7 @@ module mkNalUnwrap( INalUnwrap );
       else
 	 begin
 	    zerocount <= zerocount-1;
-	    outfifo.enq(RbspByte 0);
+	    outfifo.enq(tagged RbspByte 0);
 	    $display("ccl1rbspbyte 00");
 	 end  
    endrule
@@ -106,13 +106,13 @@ module mkNalUnwrap( INalUnwrap );
 	    else if(zerocount==0)
 	       begin
 		  bufcount <= 2;
-		  outfifo.enq(RbspByte bufferc);
+		  outfifo.enq(tagged RbspByte bufferc);
 		  $display("ccl1rbspbyte %h", bufferc);
 	       end
 	    else
 	       begin
 		  zerocount <= zerocount-1;
-		  outfifo.enq(RbspByte 0);
+		  outfifo.enq(tagged RbspByte 0);
 		  $display("ccl1rbspbyte 00");
 	       end
 	 end
@@ -120,14 +120,14 @@ module mkNalUnwrap( INalUnwrap );
 	 begin
 	    bufcount  <= 1;
 	    if(!(bufferb==0 && buffera==0))
-	       outfifo.enq(RbspByte bufferb);
+	       outfifo.enq(tagged RbspByte bufferb);
 	       $display("ccl1rbspbyte %h", bufferb);
 	 end
 	 1:
 	 begin
 	    bufcount  <= 0;
 	    if(!(buffera==0))
-	       outfifo.enq(RbspByte buffera);
+	       outfifo.enq(tagged RbspByte buffera);
 	       $display("ccl1rbspbyte %h", buffera);
 	 end
 	 0:

@@ -503,7 +503,7 @@ module mkInverseTrans( IInverseTrans );
 	    if(stage1Zeros)
 	       work2Vector <= Zeros;
 	    else
-	       work2Vector <= (Values workVectorTemp);
+	       work2Vector <= (tagged Values workVectorTemp);
 	    stage1Zeros <= False;
 	    stage1Done <= False;
 	    workVector <= replicate(0);
@@ -655,7 +655,7 @@ module mkInverseTrans( IInverseTrans );
 		  for(Integer ii=0; ii<4; ii=ii+1)
 		     work2VectorNew[tempIndex+fromInteger(ii*4)] = resultVector[ii];
 	       end
-	    work2Vector <= (Values work2VectorNew);
+	    work2Vector <= (tagged Values work2VectorNew);
 	    if(stage2Step == 7)
 	       stage2Done <= True;
 	    stage2Step <= stage2Step+1;
@@ -671,7 +671,7 @@ module mkInverseTrans( IInverseTrans );
 	    Vector#(4,Bit#(10)) outputVector = replicate(0);
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       outputVector[ii] = truncate((xdata[{stage3Step,2'b00}+fromInteger(ii)]+32) >> 6);
-	    outfifo.enq(ITBresidual outputVector);
+	    outfifo.enq(tagged ITBresidual outputVector);
 	    Int#(10) tempint = unpack(outputVector[0]);
 	    $display("ccl3IBTresidual %0d", tempint);
 	    tempint = unpack(outputVector[1]);
@@ -686,7 +686,7 @@ module mkInverseTrans( IInverseTrans );
 	 end
       else
 	 begin
-	    outfifo.enq(ITBcoeffLevelZeros);
+	    outfifo.enq(tagged ITBcoeffLevelZeros);
 	    stage3Done <= True;
 	 end
    endrule
