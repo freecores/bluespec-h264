@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.10 2008-06-26 18:04:55 jamey.hicks Exp $
+# $Id: Makefile,v 1.11 2008-06-26 18:10:59 jamey.hicks Exp $
 #
 
 default : all
@@ -22,40 +22,8 @@ bsvclibsrcs = \
 toplevel_module = mkTH
 
 srcdir = $(basedir)/src
-bsvsrcs = \
-	$(srcdir)/BRAM.bsv \
-	$(srcdir)/H264Types.bsv \
-	$(srcdir)/ExpGolomb.bsv \
-	$(srcdir)/CAVLC.bsv \
-	$(srcdir)/IH264.bsv \
-	$(srcdir)/IInputGen.bsv \
-	$(srcdir)/INalUnwrap.bsv \
-	$(srcdir)/IEntropyDec.bsv \
-	$(srcdir)/ICalc_nC.bsv \
-	$(srcdir)/IMemED.bsv \
-	$(srcdir)/IInverseTrans.bsv \
-	$(srcdir)/IPrediction.bsv \
-	$(srcdir)/IInterpolator.bsv \
-	$(srcdir)/IDeblockFilter.bsv \
-	$(srcdir)/IBufferControl.bsv \
-	$(srcdir)/IFrameBuffer.bsv \
-	$(srcdir)/IFinalOutput.bsv \
-	$(srcdir)/mkH264.bsv \
-	$(srcdir)/mkInputGen.bsv \
-	$(srcdir)/mkNalUnwrap.bsv \
-	$(srcdir)/mkEntropyDec.bsv \
-	$(srcdir)/mkCalc_nC.bsv \
-	$(srcdir)/mkMemED.bsv \
-	$(srcdir)/mkInverseTrans.bsv \
-	$(srcdir)/mkPrediction.bsv \
-	$(srcdir)/mkInterpolator.bsv \
-	$(srcdir)/mkDeblockFilter.bsv \
-	$(srcdir)/mkBufferControl.bsv \
-	$(srcdir)/mkFrameBuffer.bsv \
-	$(srcdir)/mkFinalOutput.bsv \
-	$(srcdir)/mkTH.bsv \
-        $(srcdir)/EntropyTee.bsv \
-        $(srcdir)/DeblockTee.bsv \
+reldir = $(basedir)/release
+lcpdir = $(basedir)/LumaChromaParallel
         $(srcdir)/MemoryTee.bsv \
         $(srcdir)/IDecoupledClient.bsv \
 	$(srcdir)/IMemEDDecoupled.bsv \
@@ -71,42 +39,26 @@ BSC_COMP = bsc
 
 BSC_OPTS = -u -v -verilog -aggressive-conditions
 
-# Copy over the bluespec source
 
-$(notdir $(bsvsrcs)) : % : $(srcdir)/%
-	cp $< .
+mainline : 
+	$(BSC_COMP) $(BSC_OPTS) -bdir ./ -p +:$(srcdir) -g $(toplevel_module) $(srcdir)/$(toplevel_module).bsv > out.log
 
-$(notdir $(bsvclibsrcs)) : % : $(bsvclibdir)/%
-	cp $< .
+release : 
+	$(BSC_COMP) $(BSC_OPTS) -bdir ./ -p +:$(reldir)/ -g $(toplevel_module) $(reldir)/$(toplevel_module).bsv> out.log\
 
-# Run the bluespec compiler
-
-bsv_TH_vsrc = $(toplevel_module).v
-$(bsv_TH_vsrc) $(bsv_lib_use) : $(notdir $(bsvsrcs) $(bsvclibsrcs))
-	$(BSC_COMP) $(BSC_OPTS) +RTS -K2000M -RTS -g $(toplevel_module) $(toplevel_module).bsv > out.log
-
-compile : $(toplevel_module).v
-
-# Create a schedule file
-
-schedule_rpt = schedule.rpt
-$(schedule_rpt) : $(notdir $(bsvsrcs) $(bsvclibsrcs))
-	rm -rf *.v
-	$(BSC_COMP) $(BSC_OPTS) -show-schedule -show-rule-rel \* \* -g $(toplevel_module) \
-                $(toplevel_module).bsv >& $(schedule_rpt)
-
-junk += $(notdir $(bsvsrcs)) $(notdir $(bsvclibsrcs)) \
-	    $(schedule_rpt) *.use *.bi *.bo *.v bsc.log
+LCP : 
+	$(BSC_COMP) $(BSC_OPTS) -bdir ./ -p +:$(lcpdir):$(reldir)/ -g $(toplevel_module) $(reldir)/$(toplevel_module).bsv> out.log\
 
 #--------------------------------------------------------------------
 # Default make target
 #--------------------------------------------------------------------
 
-all : compile
+all : mainline
 
 #--------------------------------------------------------------------
 # Clean up
 #--------------------------------------------------------------------
 
 clean :
-	rm -rf $(junk) *~ \#* 
+	rm -rf $(junk) *~ \#* *.cxx *.ba *.o *.h *.bi *.bo *.bsv
+ 

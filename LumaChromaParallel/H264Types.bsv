@@ -300,7 +300,7 @@ typedef union tagged
 
  ////Prediction Block output
  struct {Bit#(6) qpy; Bit#(6) qpc;} IBTmb_qp;//qp for luma and chroma for the current MB
- struct {Bit#(3) bShor; Bit#(3) bSver;} PBbS;//
+ struct {Bit#(3) bShor; Bit#(3) bSver; Bit#(4) blockNum;} PBbS;//
  Tuple2#(ChromaFlag,Vector#(4,Bit#(8))) PBoutput;//prediction+residual in regular h.264 order
 
   

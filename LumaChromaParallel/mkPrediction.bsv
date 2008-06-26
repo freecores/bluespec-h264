@@ -561,7 +561,7 @@ module mkPrediction( IPrediction );
       Bit#(2) blockVer = {outBlockNum[3],outBlockNum[1]};
       Bit#(2) pixelVer = {outPixelNum[3],outPixelNum[2]};
       Bit#(4) totalVer = {blockVer,pixelVer};
-      //$display( "Trace Prediction: outputing" );
+      $display( "bsFIFO Trace Prediction: outputing (%d,%d)", blockVer,blockHor );
       if(outFirstQPFlag)
 	 begin
 	    if(infifo_ITB.first() matches tagged IBTmb_qp .xdata)
@@ -584,7 +584,7 @@ module mkPrediction( IPrediction );
 		  Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 		  Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
 		  Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
-		  outfifo.enq(PBbS {bShor:horBS,bSver:verBS});
+		  outfifo.enq(PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 		  interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
 		  interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);
 		  $display( "Trace Prediction: outputing SkipMB bS %h %h %h %h", outBlockNum, outPixelNum, currMbHor, currMbVer);
@@ -615,7 +615,7 @@ module mkPrediction( IPrediction );
 			begin
 			   interBSoutput <= False;
 			   if(outstatefifo.first() != Inter)
-			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3)});
+			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
 			   else
 			      begin
 				 interBSfifo.deq();
@@ -623,7 +623,7 @@ module mkPrediction( IPrediction );
 				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 				 Bit#(3) horBS = (tempHorBS==3 ? 4 : 2);
 				 Bit#(3) verBS = (tempVerBS==3 ? 4 : 2);
-				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS});
+				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 			      end
 			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, True);
 			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, True);
@@ -656,7 +656,7 @@ module mkPrediction( IPrediction );
 			begin
 			   interBSoutput <= False;
 			   if(outstatefifo.first() != Inter)
-			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3)});
+			      outfifo.enq(tagged PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3),blockNum: outBlockNum});
 			   else
 			      begin
 				 interBSfifo.deq();
@@ -664,7 +664,7 @@ module mkPrediction( IPrediction );
 				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
 				 Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
 				 Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
-				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS});
+				 outfifo.enq(tagged PBbS {bShor:horBS,bSver:verBS,blockNum: outBlockNum});
 			      end
 			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
 			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);

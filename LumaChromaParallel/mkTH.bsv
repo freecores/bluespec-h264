@@ -67,7 +67,6 @@ module mkTH( Empty );
       if(cyclecount > 600000000)
 	 begin
 	    $display( "ERROR mkTH: time out" );
-	    $finish(0);
 	 end
    endrule
    

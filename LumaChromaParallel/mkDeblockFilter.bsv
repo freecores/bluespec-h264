@@ -301,7 +301,7 @@ endmodule
 
 
 (* synthesize *)
-module mkDeblockFilter ( IDeblockFilter );
+module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
 
    FIFOF#(EntropyDecOT) infifo     <- mkSizedFIFOF(deblockFilter_infifo_size);
    FIFO#(DeblockFilterOT) outfifo <- mkFIFO();
@@ -319,7 +319,8 @@ module mkDeblockFilter ( IDeblockFilter );
    Reg#(Process) process       <- mkReg(Passing);
    Reg#(VerticalState) verticalState <- mkReg(NormalOperation);
 
-   Reg#(ChromaFlag) chromaFlag <- mkReg(Luma);
+   String csStr = (chromaFlag == Luma)?"Luma":"Chroma";
+
    Reg#(Bit#(5)) dataReqCount  <- mkReg(0);
    Reg#(Bit#(5)) dataRespCount <- mkReg(0);
    Reg#(Bit#(4)) blockNum      <- mkReg(0);
@@ -802,16 +803,20 @@ module mkDeblockFilter ( IDeblockFilter );
 	 tagged PBbS .xdata :
 	    begin
 	       infifo.deq();	       
-               bSfileHor.upd(blockNum, xdata.bShor);
-               bSfileVer.upd(blockNum, xdata.bSver);
-               $display( "TRACE Deblocking Filter: horizontal bsFIFO data: %d, subblock(%0d, %0d) row: %0d, ",infifo.first(), blockHor, blockVer, pixelNum);
+               bSfileHor.upd(xdata.blockNum, xdata.bShor);
+               bSfileVer.upd(xdata.blockNum, xdata.bSver);
+               $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO data: %d, subblock(%0d, %0d) row: %0d, ",csStr,infifo.first(), blockHor, blockVer, pixelNum);
+	       if(blockNum != xdata.blockNum)
+                 begin
+                   $display( "PARDEBLOCK(%s) ERROR: horizontal bsFIFO , subblock(%0d) expected subblock(%0d) ",csStr, blockNum,  xdata.blockNum);
+                 end 
 	    end
 	 tagged PBoutput .predOutput :
 	    begin
 	       match {.predChromaFlag, .xdata} = predOutput;
 	       if(predChromaFlag != chromaFlag)
 		  begin
-		    $display("ERROR chroma flag mismatch in deblocking filter");
+		    $display("PARDEBLOCK ERROR chroma flag mismatch in deblocking filter");
 		  end
                Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);
                if((chromaFlag == Chroma) && (blockHor[1] == 1))
@@ -928,7 +933,7 @@ module mkDeblockFilter ( IDeblockFilter );
                  end
 	       else if(pixelNum==3)
                  begin
-                   $display( "TRACE Deblocking Filter: horizontal bsFIFO completed subblock(%0d, %0d)", blockHor, blockVer);
+                   $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO completed subblock(%0d, %0d)",csStr, blockHor, blockVer);
 		   blockNum <= blockNum+1;
                  end              
 	       pixelNum <= pixelNum+1;
@@ -1137,17 +1142,15 @@ end
     Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);     
     if(chromaFlag==Luma)
       begin		    
-        chromaFlag <= Chroma;
-        process <= Initialize;
-        $display( "TRACE Deblocking Filter: horizontal bsFIFO luma completed");
+        $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO luma completed",csStr);
       end
     else
       begin
-        $display( "TRACE Deblocking Filter: horizontal bsFIFO chroma completed");
-        chromaFlag <= Luma;
+         $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO chroma completed",csStr);
+      end
         process <= Passing;
         Bit#(PicWidthSz) temp = truncate(currMbHor);
-        parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
+        parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}}); // this may need to change....
         left_intra <= curr_intra;
         left_qpc <= curr_qpc;
         left_qpy <= curr_qpy;
@@ -1156,8 +1159,7 @@ end
         if(currMbVer==picHeight-1 && currMbHor==zeroExtend(picWidth-1))
           begin
             outfifo.enq(EndOfFrame);
-          end
-      end 	 	     
+          end	 	     
    endrule
   
    interface Client mem_client_data;

@@ -41,6 +41,7 @@ import mkInverseTrans::*;
 import mkPrediction::*;
 import mkDeblockFilter::*;
 import mkBufferControl::*;
+import DeblockParallel::*;
  
 import Connectable::*;
 import GetPut::*;
@@ -55,7 +56,7 @@ module mkH264( IH264 );
    IEntropyDec    entropydec    <- mkEntropyDec();
    IInverseTrans  inversetrans  <- mkInverseTrans();
    IPrediction    prediction    <- mkPrediction();
-   IDeblockFilter deblockfilter <- mkDeblockFilter();
+   IDeblockFilter deblockfilter <- mkDeblockFilterParallel(); 
    IBufferControl buffercontrol <- mkBufferControl();
 
    // Internal connections
@@ -65,9 +66,9 @@ module mkH264( IH264 );
    mkConnection( entropydec.ioout_InverseTrans, inversetrans.ioin );
    mkConnection( entropydec.ioout, prediction.ioin );
    mkConnection( inversetrans.ioout, prediction.ioin_InverseTrans );
-   mkConnection(prediction.ioout, deblockfilter.ioin);
+   mkConnection( prediction.ioout, deblockfilter.ioin );
    mkConnection( deblockfilter.ioout, buffercontrol.ioin);
-
+   
    // Interface to input generator
    interface ioin = nalunwrap.ioin;
    
