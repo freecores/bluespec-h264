@@ -10,6 +10,7 @@ import H264Types::*;
 
 import IDeblockFilter::*;
 import FIFO::*;
+import FIFOF::*;
 import Vector::*;
 
 import Connectable::*;
@@ -17,7 +18,6 @@ import GetPut::*;
 import ClientServer::*;
 import RegFile::*;
 import RWire::*;
-
 
 //-----------------------------------------------------------
 // Local Datatypes
@@ -282,10 +282,15 @@ endmodule
 (* synthesize *)
 module mkDeblockFilter( IDeblockFilter );
 
-   FIFO#(EntropyDecOT) infifo     <- mkSizedFIFO(deblockFilter_infifo_size);
+   FIFOF#(EntropyDecOT) infifo     <- mkSizedFIFOF(deblockFilter_infifo_size);
    FIFO#(DeblockFilterOT) outfifo <- mkFIFO();
+   FIFO#(DeblockFilterOT) outfifoVertical <- mkFIFO();
 
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemReqQ       <- mkFIFO;
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkFIFO();
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqVertical              <- mkFIFO();
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqDataSendReq           <- mkFIFO();
+
    FIFO#(MemReq#(PicWidthSz,13))          parameterMemReqQ  <- mkFIFO;
    FIFO#(MemResp#(32))                    dataMemRespQ      <- mkFIFO;
    FIFO#(MemResp#(13))                    parameterMemRespQ <- mkFIFO;
@@ -375,17 +380,48 @@ module mkDeblockFilter( IDeblockFilter );
 
    Reg#(Bit#(2)) columnNumber <- mkReg(0);      
  
+   // Debugging register
+   Reg#(Bit#(32)) fifo_full_count <- mkReg(0);
+   Reg#(Bit#(32)) total_cycles <- mkReg(0);
 
    //-----------------------------------------------------------
    // Rules
 
+   rule incr;
+     total_cycles <= total_cycles + 1;
+   endrule
+
 
    rule checkFIFO ( True );
-      $display( "Trace DeblockFilter: checkFIFO %h", infifo.first() );
-      $display( "TRACE DeblockFilter: checkFIFO %h", infifo.first() ); 
+      $display( "Trace DeblockFilter: checkFIFO %h cycle: %d", infifo.first(), total_cycles );
+      $display( "TRACE DeblockFilter: checkFIFO %h", infifo.first() );
+      if(!infifo.notFull)
+        begin
+          fifo_full_count <= fifo_full_count + 1;
+          $display("DEBLOCK FIFO FULL: %d of %d",fifo_full_count, total_cycles); 
+        end 
    endrule
-   
-   
+
+   rule memReqMergeRowToColumnConversion;
+     memReqRowToColumnConversion.deq();
+     dataMemReqQ.enq(memReqRowToColumnConversion.first());
+   endrule
+
+   rule memReqMergeVertical;
+     memReqVertical.deq();
+     dataMemReqQ.enq(memReqVertical.first());
+   endrule
+
+   rule memReqMergeDataSendReq;
+     memReqDataSendReq.deq();
+     dataMemReqQ.enq(memReqDataSendReq.first());
+   endrule
+ 
+   rule outfifoVerticalSplit;
+     outfifoVertical.deq();
+     outfifo.enq(outfifoVertical.first());
+   endrule
+
    rule passing ( process matches Passing );
       case (infifo.first()) matches
 	 tagged NewUnit . xdata :
@@ -405,7 +441,7 @@ module mkDeblockFilter( IDeblockFilter );
 	    begin
 	       infifo.deq();
 	       outfifo.enq(EDOT (infifo.first()));
-	       picHeight <= xdata;
+	       picHeight <= xdata; 
 	    end
 	 tagged PPSdeblocking_filter_control_present_flag .xdata :
 	    begin
@@ -512,7 +548,7 @@ module mkDeblockFilter( IDeblockFilter );
 	       parameterMemReqQ.enq(LoadReq (temp));
 	    Bit#(4) temp2 = truncate(dataReqCount-1);
 	    let temp3 = {temp,chromaFlag,temp2};
-	    dataMemReqQ.enq(LoadReq (temp3));
+            memReqDataSendReq.enq(LoadReq (temp3));
 	    if(dataReqCount==16)
 	       dataReqCount <= 0;
 	    else
@@ -567,11 +603,11 @@ module mkDeblockFilter( IDeblockFilter );
          // The block hor calculation may be questionable... between U and V.
          if(chromaFlag == 0)
            begin
-             dataMemReqQ.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,2'b11,rowToColumnState},data:data_out});
+             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,2'b11,rowToColumnState},data:data_out});
            end
          else
            begin  //differentiate between u and v
-             dataMemReqQ.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,blockHor[1],1'b1,rowToColumnState},data:data_out});
+             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,blockHor[1],1'b1,rowToColumnState},data:data_out});
            end
                
        end
@@ -821,14 +857,14 @@ module mkDeblockFilter( IDeblockFilter );
                    else if(chromaFlag==0)
                      begin
                        $display("TRACE mkDeblockFilter: (Left Vector) Outputting Luma ver{mbVer, blockVer(2), state(2)}: %b, hor{mbHor, blockHor(2)}: %b, data: %h",{adjustedMbVer,blockVer,pixelNum},{adjustedMbHor,2'b11} ,result[31:0] ); 
-                       outfifo.enq(DFBLuma {ver:{adjustedMbVer,blockVer,pixelVer},
+                       outfifoVertical.enq(DFBLuma {ver:{adjustedMbVer,blockVer,pixelVer},
                                             hor:{adjustedMbHor,2'b11},
                                             data:result[31:0]});
                      end
                    else
                      begin
                        $display("TRACE mkDeblockFilter: (Left Vector) Outputting Chroma %d ver{mbVer, blockVer(2), state(2)}: %b, hor{mbHor, blockHor(2)}: %b, data: %h",blockHor[1],{adjustedMbVer,blockVer[0],pixelNum},{adjustedMbHor,1'b1}  ,result[31:0]);
-                       outfifo.enq(DFBChroma {uv:blockHor[1],
+                       outfifoVertical.enq(DFBChroma {uv:blockHor[1],
                                               ver:{adjustedMbVer,blockVer[0],pixelVer},
                                               hor:{adjustedMbHor,1'b1},
                                               data:result[31:0]});
@@ -1014,7 +1050,7 @@ module mkDeblockFilter( IDeblockFilter );
                     blockHorVerticalCleanup <= blockHor;
                     verticalState <= VerticalCleanup;
                   end                 
-                dataMemReqQ.enq(StoreReq {addr:{currMbHorT,chromaFlag,blockHor,columnNumber},data:resultV[63:32]});
+                memReqVertical.enq(StoreReq {addr:{currMbHorT,chromaFlag,blockHor,columnNumber},data:resultV[63:32]});
               end
             columnToRowStore[columnNumber].enq(resultV[31:0]);
             if(columnNumber == 0)
@@ -1102,7 +1138,7 @@ end
       interface Put response = fifoToPut(parameterMemRespQ);
    endinterface
 
-   interface Put ioin  = fifoToPut(infifo);
+   interface Put ioin  = fifoToPut(fifofToFifo(infifo));
    interface Get ioout = fifoToGet(outfifo);
       
 endmodule
