@@ -714,7 +714,11 @@ module mkBufferControl( IBufferControl );
 			//$finish(0);
 			//outfifo.enq(EndOfFile); 
 		     end
-		  default: infifo.deq();
+		  default: 
+                     begin
+                       $display("WARNING: Why are we in this clause");
+                       infifo.deq();
+                     end
 	       endcase
 	    end
 	 tagged DFBLuma .indata :
