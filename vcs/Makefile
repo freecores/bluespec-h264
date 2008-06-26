@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for vcs-sim-rtl
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.3 2008-06-26 18:00:41 jamey.hicks Exp $
+# $Id: Makefile,v 1.4 2008-06-26 18:01:17 jamey.hicks Exp $
 #
 # This makefile will build a rtl simulator and run various tests to
 # verify proper functionality.
@@ -24,7 +24,7 @@ bsrcdir = $(basedir)/dc/current
 verilogsrc = $(basedir)/src_verilog
 
 vsrcs = \
-	$(bsrcdir)/synthesized.v \
+	$(pardir)/par.v \
 	$(testsrcdir)/mkTH.v \
 	$(verilogsrc)/top.v \
 #	$(bsrcdir)/mkbSVector.v \
