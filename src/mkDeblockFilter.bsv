@@ -369,14 +369,14 @@ module mkDeblockFilter( IDeblockFilter );
 
    Vector#(4, FIFO#(Bit#(32))) rowToColumnStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) rowToColumnState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkSizedFIFO(3); // The third bit 1 is to rotate the damned 
+   FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkFIFO(); // The third bit 1 is to rotate the damned 
                                                                               // last left vector block
    FIFO#(Tuple2#(Bit#(4), Bit#(32))) verticalFilterBlock <- mkFIFO();
 
    Reg#(Bit#(2)) columnState <- mkReg(0);
    Vector#(4, FIFO#(Bit#(32))) columnToRowStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) columnToRowState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO; 
+   FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
 
    Reg#(Bit#(2)) columnNumber <- mkReg(0);      
  
@@ -583,7 +583,7 @@ module mkDeblockFilter( IDeblockFilter );
      Bit#(32) data_out = 0;
      Bit#(PicWidthSz) adjustedMbHor = ((currMbHor==0) ? (picWidth-1) : truncate(currMbHor-1));
                  
-     case(rowToColumnState)
+     case(rowToColumnState) 
        2'b00: data_out = {(rowToColumnStore[3].first())[7:0], (rowToColumnStore[2].first())[7:0],
                           (rowToColumnStore[1].first())[7:0], (rowToColumnStore[0].first())[7:0]};
            
@@ -854,7 +854,7 @@ module mkDeblockFilter( IDeblockFilter );
                      begin                      
 		       rowToColumnStore[pixelNum[1:0]].enq(result[31:0]);
                        // only push in a command for the bottom leftblock.  It has to be rotated.
-                       if(pixelNum == 0)
+                       if(pixelNum == 3)
                          begin
                            rowToColumnStoreBlock.enq(tuple2(blockNum,1));
                          end
@@ -881,7 +881,7 @@ module mkDeblockFilter( IDeblockFilter );
                     // push the correction into reorder block;
                     rowToColumnStore[addrpCurr[1:0]].enq(result[31:0]);                             
                     // Push down the block number and the chroma flag into the pipeline
-                    if(pixelNum == 0)
+                    if(pixelNum == 3)
                       begin
                         let blockHorPast = blockHor - 1;
                         let blockNumPast = {blockVer[1], blockHorPast[1], blockVer[0], blockHorPast[0]};
@@ -1025,7 +1025,7 @@ module mkDeblockFilter( IDeblockFilter );
             // current Mb vertical component is larger than 0.  All of these are done and can be dumped out
             if(currMbVer > 0)
               begin
-                if(columnNumber == 0)
+                if(columnNumber == 3)
                   begin
                     columnToRowStoreBlock.enq(tuple2(blockNumCols,1'b1));
                   end
@@ -1083,7 +1083,7 @@ end
       begin
         Bit#(2) blockHor = blockHorVerticalCleanup;
         Bit#(2) blockVer = 0;
-        if(columnNumber == 0)
+        if(columnNumber == 3)
           begin
             // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
             columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
@@ -1095,7 +1095,7 @@ end
      begin        
        Bit#(2) blockHor = blockHorVerticalCleanup;
        Bit#(2) blockVer = 2; // need to make this two for subtraction in rotation unit          
-       if(columnNumber == 0)
+       if(columnNumber == 3)
          begin
            // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
            columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
