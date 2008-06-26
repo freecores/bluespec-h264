@@ -8,9 +8,9 @@ module mkEntropyTee#(Get#(EntropyDecOT) inputData, Put#(EntropyDecOT) outputData
  rule processDisplay;
    let dataIn <- inputData.get(); 
    outputData.put(dataIn);
-   $write(prefix)
-   $write("BIN ")
-   $display("%x", pack(data));
+   $write(prefix);
+   $write("BIN ");
+   $display("%h", pack(dataIn));
 
    $write(prefix);
    case (dataIn) matches
