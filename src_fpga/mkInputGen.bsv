@@ -120,7 +120,7 @@ module mkInputGen( IInputGen );
                   2'b00: data[31:24];
                 endcase;
                 counter <= counter + 1;
-                outfifo.enq(DataByte data_byte);
+                outfifo.enq(DataByte (data_byte));
                 data_counter <= data_counter - 1;
                 addr <= addr + 1;
               end

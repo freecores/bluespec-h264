@@ -49,7 +49,7 @@ module mkCalc_nC( Calc_nC );
    rule sendReq ( waiting == 1 && reqCount > 0 );
       Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
       Bit#(TAdd#(PicWidthSz,1)) temp  = {bit1,temp2};
-      memReqQ.enq(LoadReq temp );
+      memReqQ.enq(tagged LoadReq temp );
       reqCount <= reqCount-1;
    endrule
 
@@ -71,7 +71,7 @@ module mkCalc_nC( Calc_nC );
       currMbHor <= currMbHor+1;
       Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
       Bit#(TAdd#(PicWidthSz,1)) temp  = {bit1,temp2};
-      memReqQ.enq(StoreReq {addr:temp,data:20'b10000100001000010000} );
+      memReqQ.enq(tagged StoreReq {addr:temp,data:20'b10000100001000010000} );
       ipcmCount <= 0;
       waiting <= 0;
    endrule
@@ -83,7 +83,7 @@ module mkCalc_nC( Calc_nC );
 	    currMbHor <= currMbHor+1;
 	    Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 	    Bit#(TAdd#(PicWidthSz,1)) temp  = {bit1,temp2};
-	    memReqQ.enq(StoreReq {addr:temp,data:20'b00000000000000000000} );
+	    memReqQ.enq(tagged StoreReq {addr:temp,data:20'b00000000000000000000} );
 	    if(pskipCount == 1)
 	       waiting <= 0;
 	 end
@@ -91,7 +91,7 @@ module mkCalc_nC( Calc_nC );
 	 begin
 	    Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 	    Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-	    memReqQ.enq(StoreReq {addr:temp,data:20'b00000000000000000000} );
+	    memReqQ.enq(tagged StoreReq {addr:temp,data:20'b00000000000000000000} );
 	 end
       pskipCount <= pskipCount - 1;
    endrule
@@ -133,7 +133,7 @@ module mkCalc_nC( Calc_nC );
 		  respCount <= 2;
 		  Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 		  Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-		  memReqQ.enq(LoadReq temp );
+		  memReqQ.enq(tagged LoadReq temp );
 		  //$display( "ERROR EntropyDec: mkCalc_nC loadMb incomplete" );
 	       end
 	 end
@@ -226,7 +226,7 @@ module mkCalc_nC( Calc_nC );
 	 begin
 	    Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 	    Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-	    memReqQ.enq(StoreReq {addr:temp,data:topValTemp} );
+	    memReqQ.enq(tagged StoreReq {addr:temp,data:topValTemp} );
 	 end
       //$display( "TRACE nNupdate_luma old leftVal %b", leftVal );
       //$display( "TRACE nNupdate_luma old topVal %b", topVal );
@@ -267,7 +267,7 @@ module mkCalc_nC( Calc_nC );
 	    currMbHor <= currMbHor+1;
 	    Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 	    Bit#(TAdd#(PicWidthSz,1)) temp  = {bit1,temp2};
-	    memReqQ.enq(StoreReq {addr:temp,data:{topValChroma1Temp,topValChroma0Temp}} );
+	    memReqQ.enq(tagged StoreReq {addr:temp,data:{topValChroma1Temp,topValChroma0Temp}} );
 	 end
    endmethod
 
@@ -280,7 +280,7 @@ module mkCalc_nC( Calc_nC );
 	    pskipCount <= (inmb_skip_run << 1)-1;
 	    Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 	    Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-	    memReqQ.enq(StoreReq {addr:temp,data:20'b00000000000000000000} );
+	    memReqQ.enq(tagged StoreReq {addr:temp,data:20'b00000000000000000000} );
 	    leftVal <= 0;
 	    leftValChroma0 <= 10'b0000000000;
 	    leftValChroma1 <= 10'b0000000000;
@@ -297,7 +297,7 @@ module mkCalc_nC( Calc_nC );
       ipcmCount <= 1;
       Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
       Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-      memReqQ.enq(StoreReq {addr:temp,data:20'b10000100001000010000} );
+      memReqQ.enq(tagged StoreReq {addr:temp,data:20'b10000100001000010000} );
    endmethod
 
    interface Client mem_client;

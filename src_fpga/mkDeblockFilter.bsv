@@ -73,26 +73,26 @@ module mkDeblockFilter( IDeblockFilter );
 	 tagged NewUnit . xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	       $display("ccl5newunit");
 	       $display("ccl5rbspbyte %h", xdata);
 	    end
 	 tagged SPSpic_width_in_mbs .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	       picWidth <= xdata;
 	    end
 	 tagged SPSpic_height_in_map_units .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	       picHeight <= xdata;
 	    end
 	 tagged SHfirst_mb_in_slice .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	       firstMb   <= xdata;
 	       currMb    <= xdata;
 	       currMbHor <= xdata;
@@ -108,9 +108,9 @@ module mkDeblockFilter( IDeblockFilter );
 	       Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);
 	       Bit#(32) pixelq = {xdata[3],xdata[2],xdata[1],xdata[0]};
 	       if(chromaFlag==0)
-		  outfifo.enq(DFBLuma {ver:{currMbVer,blockVer,pixelVer},hor:{currMbHorT,blockHor},data:pixelq});
+		  outfifo.enq(tagged DFBLuma {ver:{currMbVer,blockVer,pixelVer},hor:{currMbHorT,blockHor},data:pixelq});
 	       else
-		  outfifo.enq(DFBChroma {uv:blockHor[1],ver:{currMbVer,blockVer[0],pixelVer},hor:{currMbHorT,blockHor[0]},data:pixelq});
+		  outfifo.enq(tagged DFBChroma {uv:blockHor[1],ver:{currMbVer,blockVer[0],pixelVer},hor:{currMbHorT,blockHor[0]},data:pixelq});
 	       if(pixelNum == 12)
 		  begin
 		     pixelNum <= 0;
@@ -138,14 +138,14 @@ module mkDeblockFilter( IDeblockFilter );
 	 tagged EndOfFile :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	       $display( "ccl5: EndOfFile reached");
 	       //$finish(0);
 	    end
 	 default:
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(tagged EDOT infifo.first());
 	    end
       endcase
    endrule
@@ -168,7 +168,7 @@ module mkDeblockFilter( IDeblockFilter );
 
 
    rule outputEndOfFrame(endOfFrame);
-      outfifo.enq(EndOfFrame);
+      outfifo.enq(tagged EndOfFrame);
       endOfFrame <= False;
       //$display( "Trace Deblocking Filter: outputEndOfFrame %h", pack(infifo.first()));
    endrule

@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.2 2008-06-26 17:52:25 jamey.hicks Exp $
+# $Id: Makefile,v 1.3 2008-06-26 17:52:59 jamey.hicks Exp $
 #
 
 default : all
@@ -64,7 +64,6 @@ bsvsrcs = \
 	$(srcdir)/mkMemClient.bsv \
 	$(srcdir)/mkBRAMMemController.bsv \
         $(srcdir)/mkRoundRobinMemScheduler.bsv \
-        $(srcdir)/mkReadFirstRoundRobinMemScheduler.bsv \
         $(srcdir)/mkPriorityRoundRobinMemScheduler.bsv \
         $(srcdir)/BRAM.bsv \
         $(srcdir)/FIFO_2.bsv \

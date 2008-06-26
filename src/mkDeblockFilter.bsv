@@ -354,20 +354,20 @@ module mkDeblockFilter( IDeblockFilter );
 	 tagged NewUnit . xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	       $display("ccl5newunit");
 	       $display("ccl5rbspbyte %h", xdata);
 	    end
 	 tagged SPSpic_width_in_mbs .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	       picWidth <= xdata;
 	    end
 	 tagged SPSpic_height_in_map_units .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	       picHeight <= xdata;
 	    end
 	 tagged PPSdeblocking_filter_control_present_flag .xdata :
@@ -383,7 +383,7 @@ module mkDeblockFilter( IDeblockFilter );
 	 tagged SHfirst_mb_in_slice .xdata :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	       firstMb   <= xdata;
 	       currMb    <= xdata;
 	       currMbHor <= xdata;
@@ -421,14 +421,14 @@ module mkDeblockFilter( IDeblockFilter );
 	 tagged EndOfFile :
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	       $display( "ccl5: EndOfFile reached");
 	       //$finish(0);
 	    end
 	 default:
 	    begin
 	       infifo.deq();
-	       outfifo.enq(EDOT infifo.first());
+	       outfifo.enq(EDOT (infifo.first()));
 	    end
       endcase
    endrule
@@ -472,10 +472,10 @@ module mkDeblockFilter( IDeblockFilter );
       else
 	 begin
 	    if(dataReqCount==1)
-	       parameterMemReqQ.enq(LoadReq temp);
+	       parameterMemReqQ.enq(LoadReq (temp));
 	    Bit#(4) temp2 = truncate(dataReqCount-1);
 	    let temp3 = {temp,chromaFlag,temp2};
-	    dataMemReqQ.enq(LoadReq temp3);
+	    dataMemReqQ.enq(LoadReq (temp3));
 	    if(dataReqCount==16)
 	       dataReqCount <= 0;
 	    else

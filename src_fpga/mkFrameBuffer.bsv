@@ -82,7 +82,7 @@ module mkFrameBuffer( IFrameBuffer );
 
    rule read_response;
      Bit#(32) resp_data <- bram.read_resp();
-     loadRespQ.enq(FBLoadResp resp_data);
+     loadRespQ.enq(FBLoadResp (resp_data));
      outstandingReqs <= outstandingReqs - 1;
      $display("FBuff resp , data: %h  outstanding reqs: %d", resp_data, outstandingReqs - 1);
    endrule

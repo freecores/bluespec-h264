@@ -43,7 +43,7 @@ module mkMemED(IMemED#(index_size,data_size))
 
    rule readresp ( True );
       let temp <- bramfile.read_resp;
-      respQ.enq( LoadResp temp );
+      respQ.enq( LoadResp (temp) );
    endrule
    
    interface Server mem_server;

@@ -92,7 +92,7 @@ module mkShortTermPicList( ShortTermPicList );
 	       begin
 		  state <= RemoveFound;
 		  if(state==RemoveOutput)
-		     returnList.enq(Valid tpl_2(temp));
+		     returnList.enq(Valid (tpl_2(temp)));
 	       end
 	    if(tempCount>=picCount)
 	       $display( "ERROR BufferControl: ShortTermPicList removing not found");
@@ -139,7 +139,7 @@ module mkShortTermPicList( ShortTermPicList );
 	    Tuple2#(Bit#(16),Bit#(5)) temp <- rfile.sub(tempPic);
 	    if(tpl_1(temp)==tempNum)
 	       begin
-		  returnList.enq(Valid tpl_2(temp));
+		  returnList.enq(Valid (tpl_2(temp)));
 		  state <= Idle;
 	       end
 	    tempPic <= shortTermPicListPrev(tempPic);
@@ -153,7 +153,7 @@ module mkShortTermPicList( ShortTermPicList );
       if(tempCount<picCount)
 	 begin
 	    Tuple2#(Bit#(16),Bit#(5)) temp <- rfile.sub(tempPic);
-	    returnList.enq(Valid tpl_2(temp));
+	    returnList.enq(Valid (tpl_2(temp)));
 	    tempPic <= shortTermPicListPrev(tempPic);
 	    tempCount <= tempCount+1;
 	 end
@@ -290,7 +290,7 @@ module mkLongTermPicList( LongTermPicList );
 	 begin
 	    Maybe#(Bit#(5)) temp <- rfile.sub(tempPic);
 	    if(temp matches tagged Valid .data)
-	       returnList.enq(Valid data);
+	       returnList.enq(Valid (data));
 	    tempPic <= tempPic+1;
 	 end
       else
@@ -311,7 +311,7 @@ module mkLongTermPicList( LongTermPicList );
       let rData <- rfile.sub(frameNum); 
       if(rData matches tagged Invalid)
 	 picCount <= picCount+1;
-      rfile.upd(frameNum,Valid slot);
+      rfile.upd(frameNum,Valid (slot));
       //$display( "TRACE BufferControl: LongTermPicList insert %h %h %h", picCount, frameNum, slot);
    endmethod
    
@@ -882,7 +882,7 @@ module mkBufferControl( IBufferControl );
       if(loadRespQ1.first() matches tagged FBLoadResp .xdata)
 	 begin
 	    loadRespQ1.deq();
-	    outfifo.enq(YUV xdata);
+	    outfifo.enq(YUV (xdata));
 	    if(outRespCount == {1'b0,frameinmb,6'b000000}+{2'b00,frameinmb,5'b00000}-1)
 	       outputframedone <= True;
 	    outRespCount <= outRespCount+1;
@@ -949,7 +949,7 @@ module mkBufferControl( IBufferControl );
       else if(inLoadOutOfBounds.first() == 2'b11)
 	 inLoadRespQ.enq(IPLoadResp ({data[31:24],data[31:24],data[31:24],data[31:24]}));
       else
-	 inLoadRespQ.enq(IPLoadResp data);
+	 inLoadRespQ.enq(IPLoadResp (data));
       inLoadOutOfBounds.deq();
       //$display( "Trace BufferControl: interResp %h %h", inLoadOutOfBounds.first(), data);
    endrule

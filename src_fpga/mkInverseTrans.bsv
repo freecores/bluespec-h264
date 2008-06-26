@@ -635,7 +635,7 @@ module mkInverseTrans( IInverseTrans );
       
       for(Integer ii=0; ii<4; ii=ii+1)
 	 outputVector[ii] = truncate((workVectorTemp[pixelNum+fromInteger(ii)]+32) >> 6);
-      outfifo.enq(ITBresidual outputVector);
+      outfifo.enq( tagged ITBresidual outputVector);
       Int#(10) tempint = unpack(outputVector[0]);
       $display("ccl3IBTresidual %0d", tempint);
       tempint = unpack(outputVector[1]);

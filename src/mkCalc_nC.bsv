@@ -49,7 +49,7 @@ module mkCalc_nC( Calc_nC );
    rule sendReq ( waiting == 1 && reqCount > 0 );
       Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
       Bit#(TAdd#(PicWidthSz,1)) temp  = {bit1,temp2};
-      memReqQ.enq(LoadReq temp );
+      memReqQ.enq(LoadReq (temp) );
       reqCount <= reqCount-1;
    endrule
 
@@ -133,7 +133,7 @@ module mkCalc_nC( Calc_nC );
 		  respCount <= 2;
 		  Bit#(PicWidthSz)          temp2 = truncate(currMbHor);
 		  Bit#(TAdd#(PicWidthSz,1)) temp  = {bit0,temp2};
-		  memReqQ.enq(LoadReq temp );
+		  memReqQ.enq(LoadReq (temp) );
 		  //$display( "ERROR EntropyDec: mkCalc_nC loadMb incomplete" );
 	       end
 	 end

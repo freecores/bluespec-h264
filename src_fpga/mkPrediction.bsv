@@ -309,9 +309,9 @@ module mkPrediction( IPrediction );
 	       currMbHor <= xdata;
 	       currMbVer <= 0;
 	       intra4x4typeLeft <= replicate(15);
-	       interTopLeftVal <= replicate(NotInter 0);
+	       interTopLeftVal <= replicate(tagged NotInter 0);
 	       if(xdata==0)
-		  interLeftVal <= replicate(NotInter 0);
+		  interLeftVal <= replicate(tagged NotInter 0);
 	       outFirstQPFlag <= True;
 	    end
 	 tagged SDmb_skip_run .xdata : passFlag <= False;
@@ -350,8 +350,8 @@ module mkPrediction( IPrediction );
 				 interRespCount <= 1;
 				 intra4x4typeLeft <= replicate(14);
 				 intra4x4typeTop <= replicate(14);
-				 interTopLeftVal <= update(interTopLeftVal , 0, (NotInter 0));
-				 interTopVal <= replicate(NotInter 0);
+				 interTopLeftVal <= update(interTopLeftVal , 0, (tagged NotInter 0));
+				 interTopVal <= replicate(tagged NotInter 0);
 				 interPskipCount <= interPskipCount+1;
 				 interNewestMv <= 0;
 				 interRefIdxVector <= replicate(0);
@@ -389,9 +389,9 @@ module mkPrediction( IPrediction );
 				    $display( "ERROR Prediction: MacroblockLayer 5 sdmmbtype not I_16x16" );
 				 intraReqCount <= 1;
 				 intraRespCount <= 1;
-				 interTopLeftVal <= replicate(NotInter 1);
-				 interLeftVal <= replicate(NotInter 1);
-				 interTopVal <= replicate(NotInter 1);
+				 interTopLeftVal <= replicate(tagged NotInter 1);
+				 interLeftVal <= replicate(tagged NotInter 1);
+				 interTopVal <= replicate(tagged NotInter 1);
 			      end
 			   else
 			      donotfire.doNotFire();
@@ -404,9 +404,9 @@ module mkPrediction( IPrediction );
 				 intrastate <= Intra4x4;
 				 intraReqCount <= 1;
 				 intraRespCount <= 1;
-				 interTopLeftVal <= replicate(NotInter 1);
-				 interLeftVal <= replicate(NotInter 1);
-				 interTopVal <= replicate(NotInter 1);
+				 interTopLeftVal <= replicate(tagged NotInter 1);
+				 interLeftVal <= replicate(tagged NotInter 1);
+				 interTopVal <= replicate(tagged NotInter 1);
 			      end
 			   else
 			      donotfire.doNotFire();
@@ -417,9 +417,9 @@ module mkPrediction( IPrediction );
 			   $finish;////////////////////////////////////////////////////////////////////////////////////////
 			   intra4x4typeLeft <= replicate(13);
 			   intra4x4typeTop <= replicate(13);
-			   interTopLeftVal <= replicate(NotInter 1);
-			   interLeftVal <= replicate(NotInter 1);
-			   interTopVal <= replicate(NotInter 1);
+			   interTopLeftVal <= replicate(tagged NotInter 1);
+			   interLeftVal <= replicate(tagged NotInter 1);
+			   interTopVal <= replicate(tagged NotInter 1);
 			end
 		     else
 			begin
@@ -438,8 +438,8 @@ module mkPrediction( IPrediction );
 				 interRespCount <= 1;
 				 intra4x4typeLeft <= replicate(14);/////////////////////////////////////////////////////////////////////////////
 				 intra4x4typeTop <= replicate(14);
-				 interTopLeftVal <= update(interTopLeftVal , 0, (NotInter 0));
-				 interTopVal <= replicate(NotInter 0);
+				 interTopLeftVal <= update(interTopLeftVal , 0, (tagged NotInter 0));
+				 interTopVal <= replicate(tagged NotInter 0);
 				 interNewestMv <= 0;
 				 interRefIdxVector <= replicate(0);
 				 nextoutputfifo.enq(NonSkipMB);
@@ -548,7 +548,7 @@ module mkPrediction( IPrediction );
       else if(nextoutputfifo.first() == SkipMB)
 	 begin
 	    outputVector = predictedfifo.first();
-	    outfifo.enq(PBoutput outputVector);
+	    outfifo.enq(tagged PBoutput outputVector);
 	    outputFlag = 1;
 	    predictedfifo.deq();
 	    $display( "Trace Prediction: outputing SkipMB out %h %h %h", outBlockNum, outPixelNum, outputVector);
@@ -559,7 +559,7 @@ module mkPrediction( IPrediction );
 	       tagged IBTmb_qp .xdata :
 		  begin
 		     infifo_ITB.deq();
-		     outfifo.enq(IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
+		     outfifo.enq(tagged IBTmb_qp {qpy:xdata.qpy,qpc:xdata.qpc});
 		     outFirstQPFlag <= False;
 		     $display( "Trace Prediction: outputing ITBmb_qp %h %h %h", outBlockNum, outPixelNum, xdata);
 		  end
@@ -576,7 +576,7 @@ module mkPrediction( IPrediction );
 			   else
 			      outputVector[ii] = tempOutputValue[7:0];
 			end
-		     outfifo.enq(PBoutput outputVector);
+		     outfifo.enq(tagged PBoutput outputVector);
 		     infifo_ITB.deq();
 		     predictedfifo.deq();
 		     outputFlag = 1;
@@ -587,7 +587,7 @@ module mkPrediction( IPrediction );
 		     if(outPixelNum == 12)
 			infifo_ITB.deq();
 		     outputVector = predictedfifo.first();
-		     outfifo.enq(PBoutput outputVector);
+		     outfifo.enq(tagged PBoutput outputVector);
 		     outputFlag = 1;
 		     predictedfifo.deq();
 		     $display( "Trace Prediction: outputing ITBcoeffLevelZeros out %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), outputVector);
@@ -801,7 +801,7 @@ module mkPrediction( IPrediction );
 	 end
       if(!noMoreReq)
 	 begin
-      	    interMemReqQ.enq(LoadReq temp);
+      	    interMemReqQ.enq(tagged LoadReq temp);
 	    interReqCount <= interReqCount+1;
 	    //$display( "TRACE Prediction: interSendReq addr %0d",temp);///////////////////////
 	 end
@@ -820,8 +820,8 @@ module mkPrediction( IPrediction );
       interIPStepCount <= 1;
       if(currMbHorTemp == 0)
 	 begin
-	    interLeftVal <= replicate(NotInter 0);
-	    interTopLeftVal <= replicate(NotInter 0);
+	    interLeftVal <= replicate(tagged NotInter 0);
+	    interTopLeftVal <= replicate(tagged  NotInter 0);
 	 end
       $display( "Trace Prediction: interReceiveNoResp %h %h", interstate, interRespCount);
    endrule
@@ -875,8 +875,8 @@ module mkPrediction( IPrediction );
 	    interIPStepCount <= 1;
 	    if(currMbHorTemp == 0)
 	       begin
-		  interLeftVal <= replicate(NotInter 0);
-		  interTopLeftValNext = replicate(NotInter 0);
+		  interLeftVal <= replicate(tagged NotInter 0);
+		  interTopLeftValNext = replicate(tagged NotInter 0);
 	       end
 	 end
       interTopVal <= interTopValNext;
@@ -970,17 +970,17 @@ module mkPrediction( IPrediction );
 	    else
 	       $display( "ERROR Prediction: interProcessStep unexpected interstate");
 	    Bit#(4) refIndex = ((interstate==InterPskip||interstate==InterP8x8ref0) ? 0 : interRefIdxVector[interMbPartNum]);
-	    Vector#(3,InterBlockMv) blockABC = replicate(NotInter 0);
+	    Vector#(3,InterBlockMv) blockABC = replicate(tagged NotInter 0);
 	    if( currMbTemp-firstMb==0 && blockHor==0 )
-	       blockABC[0] = (NotInter 0);
+	       blockABC[0] = (tagged NotInter 0);
 	    else
 	       blockABC[0] = interLeftVal[blockVer];
 	    if( currMbTemp-firstMb<zeroExtend(picWidth) && blockVer==0 )
-	       blockABC[1] = (NotInter 0);
+	       blockABC[1] = (tagged NotInter 0);
 	    else
 	       blockABC[1] = interTopVal[blockHor];
 	    blockABC[2] = interTopVal[{1'b0,blockHor}+partWidth];
-	    if(noBlockC || blockABC[2]==(NotInter 0))
+	    if(noBlockC || blockABC[2]==(tagged NotInter 0))
 	       blockABC[2] = interTopLeftVal[blockVer];
 	    
 	    partWidthR <= partWidth;
@@ -1328,7 +1328,7 @@ module mkPrediction( IPrediction );
 	 end
       if(noMoreReq == 0)
 	 begin
-      	    intraMemReqQ.enq(LoadReq temp);
+      	    intraMemReqQ.enq(tagged LoadReq temp);
 	    intraReqCount <= intraReqCount+1;
 	    //$display( "TRACE Prediction: intraSendReq addr %0d",temp);///////////////////////
 	 end
@@ -1344,7 +1344,7 @@ module mkPrediction( IPrediction );
       intraStepCount <= 1;
       blockNum <= 0;
       pixelNum <= 0;
-      interOutBlockMvfifo.enq(NotInter 1);
+      interOutBlockMvfifo.enq(tagged NotInter 1);
       $display( "Trace Prediction: intraReceiveNoResp");
    endrule
 
@@ -1406,7 +1406,7 @@ module mkPrediction( IPrediction );
 	    intraStepCount <= 1;
 	    blockNum <= 0;
 	    pixelNum <= 0;
-	    interOutBlockMvfifo.enq(NotInter 1);
+	    interOutBlockMvfifo.enq(tagged NotInter 1);
 	 end
       $display( "Trace Prediction: intraReceiveResp");
    endrule

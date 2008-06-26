@@ -189,11 +189,11 @@ module mkEntropyDec( IEntropyDec );
 	       nalrefidc <= rdata[6:5];
 	       nalunittype <= rdata[4:0];
 	       case (rdata[4:0])
-		  1 : state <= CodedSlice 0;
-		  5 : state <= CodedSlice 0;
+		  1 : state <= tagged CodedSlice 0;
+		  5 : state <= tagged CodedSlice 0;
 		  6 : state <= SEI;
-		  7 : state <= SPS 0;
-		  8 : state <= PPS 0;
+		  7 : state <= tagged SPS 0;
+		  8 : state <= tagged PPS 0;
 		  9 : state <= AUD;
 		  10: state <= EndSequence;
 		  11: state <= EndStream;
@@ -206,8 +206,8 @@ module mkEntropyDec( IEntropyDec );
 	       endcase
 	       $display("ccl2newunit");
 	       $display("ccl2rbspbyte %h", rdata);
-	       outfifo.enq(NewUnit rdata);
-	       outfifo_ITB.enq(NewUnit rdata);
+	       outfifo.enq(tagged NewUnit rdata);
+	       outfifo_ITB.enq(tagged NewUnit rdata);
 	    end
 	 tagged EndOfFile : state <= Start;
       endcase
@@ -280,26 +280,26 @@ module mkEntropyDec( IEntropyDec );
 		  0:
 		  begin
 		     $display( "ccl2SHfirst_mb_in_slice %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHfirst_mb_in_slice truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHfirst_mb_in_slice truncate(expgolomb_unsigned(buffer)));
 		     currMbAddr <= truncate(expgolomb_unsigned(buffer));
 		     calcnc.initialize(truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 1;
+		     nextstate = tagged CodedSlice 1;
 		  end
 		  1:
 		  begin
 		     $display( "ccl2SHslice_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHslice_type truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHslice_type truncate(expgolomb_unsigned(buffer)));
 		     shslice_type <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 2;
+		     nextstate = tagged CodedSlice 2;
 		  end
 		  2:
 		  begin
 		     $display( "ccl2SHpic_parameter_set_id %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 3;
+		     nextstate = tagged CodedSlice 3;
 		     if(ppspic_parameter_set_id != truncate(expgolomb_unsigned(buffer))) $display( "ERROR EntropyDec: pic_parameter_set_id don't match" );
 		  end
 		  3:
@@ -307,19 +307,19 @@ module mkEntropyDec( IEntropyDec );
 		     Bit#(16) tttt = buffer[buffersize-1:buffersize-16];
 		     tttt = tttt >> 16 - zeroExtend(spslog2_max_frame_num);
 		     $display( "ccl2SHframe_num %0d", tttt );
-		     outfifo.enq(SHframe_num tttt);
+		     outfifo.enq(tagged SHframe_num tttt);
 		     numbitsused = zeroExtend(spslog2_max_frame_num);
-		     nextstate = CodedSlice 4;
+		     nextstate = tagged CodedSlice 4;
 		  end
 		  4:
 		  begin
 		     if(nalunittype == 5)
 			begin
 			   $display( "ccl2SHidr_pic_id %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SHidr_pic_id truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SHidr_pic_id truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
-		     nextstate = CodedSlice 5;
+		     nextstate = tagged CodedSlice 5;
 		  end
 		  5:
 		  begin
@@ -328,12 +328,12 @@ module mkEntropyDec( IEntropyDec );
 			   Bit#(16) tttt = buffer[buffersize-1:buffersize-16];
 			   tttt = tttt >> 16 - zeroExtend(spslog2_max_pic_order_cnt_lsb);
 			   $display( "ccl2SHpic_order_cnt_lsb %0d", tttt );
-			   outfifo.enq(SHpic_order_cnt_lsb tttt);
+			   outfifo.enq(tagged SHpic_order_cnt_lsb tttt);
 			   numbitsused = zeroExtend(spslog2_max_pic_order_cnt_lsb);
-			   nextstate = CodedSlice 6;
+			   nextstate = tagged CodedSlice 6;
 			end
 		     else
-			nextstate = CodedSlice 7;
+			nextstate = tagged CodedSlice 7;
 		  end
 		  6:
 		  begin
@@ -344,20 +344,20 @@ module mkEntropyDec( IEntropyDec );
 				 Bufcount tempbufcount = expgolomb_numbits32(buffer);
 				 egnumbits <= tempbufcount;
 				 numbitsused = tempbufcount-1;
-				 nextstate = CodedSlice 6;
+				 nextstate = tagged CodedSlice 6;
 			      end
 			   else
 			      begin
 				 tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 				 $display( "ccl2SHdelta_pic_order_cnt_bottom %0d", tempint32 );
-				 outfifo.enq(SHdelta_pic_order_cnt_bottom truncate(expgolomb_signed32(buffer,egnumbits)));
+				 outfifo.enq(tagged SHdelta_pic_order_cnt_bottom truncate(expgolomb_signed32(buffer,egnumbits)));
 				 egnumbits <= 0;
 				 numbitsused = egnumbits;
-				 nextstate = CodedSlice 7;
+				 nextstate = tagged CodedSlice 7;
 			      end
 			end
 		     else
-			nextstate = CodedSlice 7;
+			nextstate = tagged CodedSlice 7;
 		  end
 		  7:
 		  begin
@@ -368,20 +368,20 @@ module mkEntropyDec( IEntropyDec );
 				 Bufcount tempbufcount = expgolomb_numbits32(buffer);
 				 egnumbits <= tempbufcount;
 				 numbitsused = tempbufcount-1;
-				 nextstate = CodedSlice 7;
+				 nextstate = tagged CodedSlice 7;
 			      end
 			   else
 			      begin
 				 tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 				 $display( "ccl2SHdelta_pic_order_cnt0 %0d", tempint32 );
-				 outfifo.enq(SHdelta_pic_order_cnt0 truncate(expgolomb_signed32(buffer,egnumbits)));
+				 outfifo.enq(tagged SHdelta_pic_order_cnt0 truncate(expgolomb_signed32(buffer,egnumbits)));
 				 egnumbits <= 0;
 				 numbitsused = egnumbits;
-				 nextstate = CodedSlice 8;
+				 nextstate = tagged CodedSlice 8;
 			      end
 			end
 		     else
-			nextstate = CodedSlice 9;
+			nextstate = tagged CodedSlice 9;
 		  end
 		  8:
 		  begin
@@ -392,130 +392,130 @@ module mkEntropyDec( IEntropyDec );
 				 Bufcount tempbufcount = expgolomb_numbits32(buffer);
 				 egnumbits <= tempbufcount;
 				 numbitsused = tempbufcount-1;
-				 nextstate = CodedSlice 8;
+				 nextstate = tagged CodedSlice 8;
 			      end
 			   else
 			      begin
 				 tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 				 $display( "ccl2SHdelta_pic_order_cnt1 %0d", tempint32 );
-				 outfifo.enq(SHdelta_pic_order_cnt1 truncate(expgolomb_signed32(buffer,egnumbits)));
+				 outfifo.enq(tagged SHdelta_pic_order_cnt1 truncate(expgolomb_signed32(buffer,egnumbits)));
 				 egnumbits <= 0;
 				 numbitsused = egnumbits;
-				 nextstate = CodedSlice 9;
+				 nextstate = tagged CodedSlice 9;
 			      end
 			end
 		     else
-			nextstate = CodedSlice 9;
+			nextstate = tagged CodedSlice 9;
 		  end
 		  9:
 		  begin
 		     if(shslice_type == 0 || shslice_type == 5)
 			begin
 			   $display( "ccl2SHnum_ref_idx_active_override_flag %0d", buffer[buffersize-1] );
-			   outfifo.enq(SHnum_ref_idx_active_override_flag buffer[buffersize-1]);
+			   outfifo.enq(tagged SHnum_ref_idx_active_override_flag buffer[buffersize-1]);
 			   numbitsused = 1;
 			   if(buffer[buffersize-1] == 1)
-			      nextstate = CodedSlice 10;
+			      nextstate = tagged CodedSlice 10;
 			   else
-			      nextstate = CodedSlice 11;
+			      nextstate = tagged CodedSlice 11;
 			end
 		     else
-			nextstate = CodedSlice 11;
+			nextstate = tagged CodedSlice 11;
 		  end
 		  10:
 		  begin
 		     $display( "ccl2SHnum_ref_idx_l0_active %0d", expgolomb_unsigned(buffer)+1 );
-		     outfifo.enq(SHnum_ref_idx_l0_active truncate(expgolomb_unsigned(buffer)+1));
+		     outfifo.enq(tagged SHnum_ref_idx_l0_active truncate(expgolomb_unsigned(buffer)+1));
 		     num_ref_idx_l0_active_minus1 <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 11;
+		     nextstate = tagged CodedSlice 11;
 		  end
 		  11:
 		  begin
 		     if(shslice_type != 2 && shslice_type != 7)
 			begin
 			   $display( "ccl2SHRref_pic_list_reordering_flag_l0 %0d", buffer[buffersize-1] );
-			   outfifo.enq(SHRref_pic_list_reordering_flag_l0 buffer[buffersize-1]);
+			   outfifo.enq(tagged SHRref_pic_list_reordering_flag_l0 buffer[buffersize-1]);
 			   numbitsused = 1;
 			   if(buffer[buffersize-1] == 1)
-			      nextstate = CodedSlice 12;
+			      nextstate = tagged CodedSlice 12;
 			   else
-			      nextstate = CodedSlice 15;
+			      nextstate = tagged CodedSlice 15;
 			end
 		     else
-			nextstate = CodedSlice 15;
+			nextstate = tagged CodedSlice 15;
 		  end
 		  12:
 		  begin 
 		     $display( "ccl2SHRreordering_of_pic_nums_idc %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHRreordering_of_pic_nums_idc truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHRreordering_of_pic_nums_idc truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     if(expgolomb_unsigned(buffer)==0 || expgolomb_unsigned(buffer)==1)
-			nextstate = CodedSlice 13;
+			nextstate = tagged CodedSlice 13;
 		     else if(expgolomb_unsigned(buffer)==2)
-			nextstate = CodedSlice 14;
+			nextstate = tagged CodedSlice 14;
 		     else
-			nextstate = CodedSlice 15;
+			nextstate = tagged CodedSlice 15;
 		  end
 		  13:
 		  begin
 		     Bit#(17) temp17 = zeroExtend(expgolomb_unsigned(buffer)) + 1;
 		     $display( "ccl2SHRabs_diff_pic_num %0d", temp17 );
-		     outfifo.enq(SHRabs_diff_pic_num temp17);
+		     outfifo.enq(tagged SHRabs_diff_pic_num temp17);
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 12;
+		     nextstate = tagged CodedSlice 12;
 		  end
 		  14:
 		  begin
 		     $display( "ccl2SHRlong_term_pic_num %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHRlong_term_pic_num truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHRlong_term_pic_num truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 12;
+		     nextstate = tagged CodedSlice 12;
 		  end
 		  15:
 		  begin
 		     if(nalrefidc == 0)
-			nextstate = CodedSlice 23;
+			nextstate = tagged CodedSlice 23;
 		     else
 			begin
 			   if(nalunittype == 5)
 			      begin
 				 $display( "ccl2SHDno_output_of_prior_pics_flag %0d", buffer[buffersize-1] );
-				 outfifo.enq(SHDno_output_of_prior_pics_flag buffer[buffersize-1]);
+				 outfifo.enq(tagged SHDno_output_of_prior_pics_flag buffer[buffersize-1]);
 				 numbitsused = 1;
-				 nextstate = CodedSlice 16;
+				 nextstate = tagged CodedSlice 16;
 			      end
 			   else
-			      nextstate = CodedSlice 17;
+			      nextstate = tagged CodedSlice 17;
 			end
 		  end
 		  16:
 		  begin
 		     $display( "ccl2SHDlong_term_reference_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SHDlong_term_reference_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SHDlong_term_reference_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = CodedSlice 23;
+		     nextstate = tagged CodedSlice 23;
 		  end
 		  17:
 		  begin
 		     $display( "ccl2SHDadaptive_ref_pic_marking_mode_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SHDadaptive_ref_pic_marking_mode_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SHDadaptive_ref_pic_marking_mode_flag buffer[buffersize-1]);
 		     numbitsused = 1;
 		     if(buffer[buffersize-1] == 1)
-			nextstate = CodedSlice 18;
+			nextstate = tagged CodedSlice 18;
 		     else 
-			nextstate = CodedSlice 23;
+			nextstate = tagged CodedSlice 23;
 		  end
 		  18:
 		  begin
 		     $display( "ccl2SHDmemory_management_control_operation %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SHDmemory_management_control_operation truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SHDmemory_management_control_operation truncate(expgolomb_unsigned(buffer)));
 		     shdmemory_management_control_operation <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
 		     if(expgolomb_unsigned(buffer)!=0)
-			nextstate = CodedSlice 19;
+			nextstate = tagged CodedSlice 19;
 		     else
-			nextstate = CodedSlice 23;
+			nextstate = tagged CodedSlice 23;
 		  end
 		  19:
 		  begin
@@ -523,91 +523,91 @@ module mkEntropyDec( IEntropyDec );
 		       	begin
 			   Bit#(17) temp17 = zeroExtend(expgolomb_unsigned(buffer)) + 1;
 			   $display( "ccl2SHDdifference_of_pic_nums %0d", temp17 );
-			   outfifo.enq(SHDdifference_of_pic_nums temp17);
+			   outfifo.enq(tagged SHDdifference_of_pic_nums temp17);
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = CodedSlice 20;
+			   nextstate = tagged CodedSlice 20;
 			end
 		     else
-			nextstate = CodedSlice 20;
+			nextstate = tagged CodedSlice 20;
 		  end
 		  20:
 		  begin
 		     if(shdmemory_management_control_operation==2)
 		       	begin
 			   $display( "ccl2SHDlong_term_pic_num %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SHDlong_term_pic_num truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SHDlong_term_pic_num truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = CodedSlice 21;
+			   nextstate = tagged CodedSlice 21;
 			end
 		     else
-			nextstate = CodedSlice 21;
+			nextstate = tagged CodedSlice 21;
 		  end
 		  21:
 		  begin
 		     if(shdmemory_management_control_operation==3 || shdmemory_management_control_operation==6)
 		       	begin
 			   $display( "ccl2SHDlong_term_frame_idx %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SHDlong_term_frame_idx truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SHDlong_term_frame_idx truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = CodedSlice 22;
+			   nextstate = tagged CodedSlice 22;
 			end
 		     else
-			nextstate = CodedSlice 22;
+			nextstate = tagged CodedSlice 22;
 		  end
 		  22:
 		  begin
 		     if(shdmemory_management_control_operation==4)
 		       	begin
 			   $display( "ccl2SHDmax_long_term_frame_idx_plus1 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SHDmax_long_term_frame_idx_plus1 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SHDmax_long_term_frame_idx_plus1 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = CodedSlice 18;
+			   nextstate = tagged CodedSlice 18;
 			end
 		     else
-			nextstate = CodedSlice 18;
+			nextstate = tagged CodedSlice 18;
 		  end
 		  23:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SHslice_qp_delta %0d", tempint );
-		     outfifo_ITB.enq(SHslice_qp_delta truncate(expgolomb_signed(buffer)));
+		     outfifo_ITB.enq(tagged SHslice_qp_delta truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 24;
+		     nextstate = tagged CodedSlice 24;
 		  end
 		  24:
 		  begin
 		     if(ppsdeblocking_filter_control_present_flag==1)
 			begin
 			   $display( "ccl2SHdisable_deblocking_filter_idc %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SHdisable_deblocking_filter_idc truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SHdisable_deblocking_filter_idc truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			   if(expgolomb_unsigned(buffer)!=1)
-			      nextstate = CodedSlice 25;
+			      nextstate = tagged CodedSlice 25;
 			   else
-			      nextstate = CodedSlice 27;
+			      nextstate = tagged CodedSlice 27;
 			end
 		     else
-		        nextstate = CodedSlice 27;
+		        nextstate = tagged CodedSlice 27;
 		  end
 		  25:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer) << 1);
 		     $display( "ccl2SHslice_alpha_c0_offset %0d", tempint );
-		     outfifo.enq(SHslice_alpha_c0_offset truncate(expgolomb_signed(buffer) << 1));
+		     outfifo.enq(tagged SHslice_alpha_c0_offset truncate(expgolomb_signed(buffer) << 1));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 26;
+		     nextstate = tagged CodedSlice 26;
 		  end
 		  26:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer) << 1);
 		     $display( "ccl2SHslice_beta_offset %0d", tempint );
-		     outfifo.enq(SHslice_beta_offset truncate(expgolomb_signed(buffer) << 1));
+		     outfifo.enq(tagged SHslice_beta_offset truncate(expgolomb_signed(buffer) << 1));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = CodedSlice 27;
+		     nextstate = tagged CodedSlice 27;
 		  end
 		  27:
 		  begin
-		     nextstate = SliceData 0;
+		     nextstate = tagged SliceData 0;
 		  end
 		  default: $display( "ERROR EntropyDec: CodedSlice default step" );
 	       endcase	       
@@ -629,53 +629,53 @@ module mkEntropyDec( IEntropyDec );
 		     outputdata = buffer[buffersize-17:buffersize-24];
 		     $display( "INFO EntropyDec: level_idc = %d", outputdata );
 		     numbitsused = 24;
-		     nextstate = SPS 1;
+		     nextstate = tagged SPS 1;
 		  end
 		  1:
 		  begin
 		     $display( "ccl2SPSseq_parameter_set_id %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSseq_parameter_set_id truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSseq_parameter_set_id truncate(expgolomb_unsigned(buffer)));
 		     spsseq_parameter_set_id <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 2;
+		     nextstate = tagged SPS 2;
 		  end
 		  2:
 		  begin
 		     $display( "ccl2SPSlog2_max_frame_num %0d", expgolomb_unsigned(buffer)+4 );
-		     outfifo.enq(SPSlog2_max_frame_num truncate(expgolomb_unsigned(buffer)+4));
+		     outfifo.enq(tagged SPSlog2_max_frame_num truncate(expgolomb_unsigned(buffer)+4));
 		     spslog2_max_frame_num <= truncate(expgolomb_unsigned(buffer)+4);
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 3;
+		     nextstate = tagged SPS 3;
 		  end
 		  3:
 		  begin
 		     let tttt = expgolomb_unsigned(buffer);
 		     $display( "ccl2SPSpic_order_cnt_type %0d", tttt );
-		     outfifo.enq(SPSpic_order_cnt_type truncate(tttt));
+		     outfifo.enq(tagged SPSpic_order_cnt_type truncate(tttt));
 		     spspic_order_cnt_type <= truncate(tttt);
 		     numbitsused = expgolomb_numbits(buffer);
 		     if(tttt == 0) 
-			nextstate = SPS 4;
+			nextstate = tagged SPS 4;
 		     else if(tttt == 1) 
-			nextstate = SPS 5;
+			nextstate = tagged SPS 5;
 		     else 
-			nextstate = SPS 10;
+			nextstate = tagged SPS 10;
 		  end
 		  4:
 		  begin
 		     $display( "ccl2SPSlog2_max_pic_order_cnt_lsb %0d", expgolomb_unsigned(buffer)+4 );
-		     outfifo.enq(SPSlog2_max_pic_order_cnt_lsb truncate(expgolomb_unsigned(buffer)+4));
+		     outfifo.enq(tagged SPSlog2_max_pic_order_cnt_lsb truncate(expgolomb_unsigned(buffer)+4));
 		     spslog2_max_pic_order_cnt_lsb <= truncate(expgolomb_unsigned(buffer)+4);
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 10;
+		     nextstate = tagged SPS 10;
 		  end
 		  5:
 		  begin
 		     $display( "ccl2SPSdelta_pic_order_always_zero_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SPSdelta_pic_order_always_zero_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SPSdelta_pic_order_always_zero_flag buffer[buffersize-1]);
 		     spsdelta_pic_order_always_zero_flag <= buffer[buffersize-1];
 		     numbitsused = 1;
-		     nextstate = SPS 6;
+		     nextstate = tagged SPS 6;
 		  end
 		  6:
 		  begin
@@ -684,16 +684,16 @@ module mkEntropyDec( IEntropyDec );
 			   Bufcount tempbufcount = expgolomb_numbits32(buffer);
 			   egnumbits <= tempbufcount;
 			   numbitsused = tempbufcount-1;
-			   nextstate = SPS 6;
+			   nextstate = tagged SPS 6;
 			end
 		     else
 			begin
 			   tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 			   $display( "ccl2SPSoffset_for_non_ref_pic %0d", tempint32 );
-			   outfifo.enq(SPSoffset_for_non_ref_pic truncate(expgolomb_signed32(buffer,egnumbits)));
+			   outfifo.enq(tagged SPSoffset_for_non_ref_pic truncate(expgolomb_signed32(buffer,egnumbits)));
 			   egnumbits <= 0;
 			   numbitsused = egnumbits;
-			   nextstate = SPS 7;
+			   nextstate = tagged SPS 7;
 			end
 		  end
 		  7:
@@ -703,30 +703,30 @@ module mkEntropyDec( IEntropyDec );
 			   Bufcount tempbufcount = expgolomb_numbits32(buffer);
 			   egnumbits <= tempbufcount;
 			   numbitsused = tempbufcount-1;
-			   nextstate = SPS 7;
+			   nextstate = tagged SPS 7;
 			end
 		     else
 			begin
 			   tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 			   $display( "ccl2SPSoffset_for_top_to_bottom_field %0d", tempint32 );
-			   outfifo.enq(SPSoffset_for_top_to_bottom_field truncate(expgolomb_signed32(buffer,egnumbits)));
+			   outfifo.enq(tagged SPSoffset_for_top_to_bottom_field truncate(expgolomb_signed32(buffer,egnumbits)));
 			   egnumbits <= 0;
 			   numbitsused = egnumbits;
-			   nextstate = SPS 8;
+			   nextstate = tagged SPS 8;
 			end
 		  end
 		  8:
 		  begin
 		     $display( "ccl2SPSnum_ref_frames_in_pic_order_cnt_cycle %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSnum_ref_frames_in_pic_order_cnt_cycle truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSnum_ref_frames_in_pic_order_cnt_cycle truncate(expgolomb_unsigned(buffer)));
 		     spsnum_ref_frames_in_pic_order_cnt_cycle <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 9;
+		     nextstate = tagged SPS 9;
 		  end
 		  9:
 		  begin
 		     if(spsnum_ref_frames_in_pic_order_cnt_cycle == 0) 
-			nextstate = SPS 10;
+			nextstate = tagged SPS 10;
 		     else
 			begin
 			   if(egnumbits == 0)
@@ -734,99 +734,99 @@ module mkEntropyDec( IEntropyDec );
 				 Bufcount tempbufcount = expgolomb_numbits32(buffer);
 				 egnumbits <= tempbufcount;
 				 numbitsused = tempbufcount-1;
-				 nextstate = SPS 9;
+				 nextstate = tagged SPS 9;
 			      end
 			   else
 			      begin
 				 tempint32 = unpack(expgolomb_signed32(buffer,egnumbits));
 				 $display( "ccl2SPSoffset_for_ref_frame %0d", tempint32 );
-				 outfifo.enq(SPSoffset_for_ref_frame truncate(expgolomb_signed32(buffer,egnumbits)));
+				 outfifo.enq(tagged SPSoffset_for_ref_frame truncate(expgolomb_signed32(buffer,egnumbits)));
 				 egnumbits <= 0;
 				 spsnum_ref_frames_in_pic_order_cnt_cycle <= spsnum_ref_frames_in_pic_order_cnt_cycle - 1;
 				 numbitsused = egnumbits;
-				 nextstate = SPS 9;
+				 nextstate = tagged SPS 9;
 			      end
 			end
 		  end
 		  10:
 		  begin
 		     $display( "ccl2SPSnum_ref_frames %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSnum_ref_frames truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSnum_ref_frames truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 11;
+		     nextstate = tagged SPS 11;
 		  end
 		  11:
 		  begin
 		     $display( "ccl2SPSgaps_in_frame_num_allowed_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SPSgaps_in_frame_num_allowed_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SPSgaps_in_frame_num_allowed_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = SPS 12;
+		     nextstate = tagged SPS 12;
 		  end
 		  12:
 		  begin
 		     $display( "ccl2SPSpic_width_in_mbs %0d", expgolomb_unsigned(buffer)+1 );
-		     outfifo.enq(SPSpic_width_in_mbs truncate(expgolomb_unsigned(buffer)+1));
+		     outfifo.enq(tagged SPSpic_width_in_mbs truncate(expgolomb_unsigned(buffer)+1));
 		     calcnc.initialize_picWidth(truncate(expgolomb_unsigned(buffer)+1));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 13;
+		     nextstate = tagged SPS 13;
 		  end
 		  13:
 		  begin
 		     $display( "ccl2SPSpic_height_in_map_units %0d", expgolomb_unsigned(buffer)+1 );
-		     outfifo.enq(SPSpic_height_in_map_units truncate(expgolomb_unsigned(buffer)+1));
+		     outfifo.enq(tagged SPSpic_height_in_map_units truncate(expgolomb_unsigned(buffer)+1));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 14;
+		     nextstate = tagged SPS 14;
 		  end
 		  14:
 		  begin
 		     //SPSframe_mbs_only_flag = 1 for baseline
 		     numbitsused = 1;
-		     nextstate = SPS 15;
+		     nextstate = tagged SPS 15;
 		  end
 		  15:
 		  begin
 		     $display( "ccl2SPSdirect_8x8_inference_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SPSdirect_8x8_inference_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SPSdirect_8x8_inference_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = SPS 16;
+		     nextstate = tagged SPS 16;
 		  end
 		  16:
 		  begin
 		     $display( "ccl2SPSframe_cropping_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(SPSframe_cropping_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged SPSframe_cropping_flag buffer[buffersize-1]);
 		     numbitsused = 1;
 		     if(buffer[buffersize-1] == 1) 
-			nextstate = SPS 17;
+			nextstate = tagged SPS 17;
 		     else 
-			nextstate = SPS 21;
+			nextstate = tagged SPS 21;
 		  end
 		  17:
 		  begin
 		     $display( "ccl2SPSframe_crop_left_offset %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSframe_crop_left_offset truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSframe_crop_left_offset truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 18;
+		     nextstate = tagged SPS 18;
 		  end
 		  18:
 		  begin
 		     $display( "ccl2SPSframe_crop_right_offset %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSframe_crop_right_offset truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSframe_crop_right_offset truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 19;
+		     nextstate = tagged SPS 19;
 		  end
 		  19:
 		  begin
 		     $display( "ccl2SPSframe_crop_top_offset %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSframe_crop_top_offset truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSframe_crop_top_offset truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 20;
+		     nextstate = tagged SPS 20;
 		  end
 		  20:
 		  begin
 		     $display( "ccl2SPSframe_crop_bottom_offset %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SPSframe_crop_bottom_offset truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SPSframe_crop_bottom_offset truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SPS 21;
+		     nextstate = tagged SPS 21;
 		  end
 		  21:
 		  begin
@@ -843,17 +843,17 @@ module mkEntropyDec( IEntropyDec );
 		  begin
 		     ppspic_parameter_set_id <= truncate(expgolomb_unsigned(buffer));
 		     $display( "ccl2PPSpic_parameter_set_id %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(PPSpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
-		     outfifo_ITB.enq(PPSpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged PPSpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
+		     outfifo_ITB.enq(tagged PPSpic_parameter_set_id truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 1;
+		     nextstate = tagged PPS 1;
 		  end
 		  1:
 		  begin
 		     $display( "ccl2PPSseq_parameter_set_id %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(PPSseq_parameter_set_id truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged PPSseq_parameter_set_id truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 2;
+		     nextstate = tagged PPS 2;
 		     if(spsseq_parameter_set_id != truncate(expgolomb_unsigned(buffer))) 
 			$display( "ERROR EntropyDec: seq_parameter_set_id don't match" );
 		  end
@@ -861,86 +861,86 @@ module mkEntropyDec( IEntropyDec );
 		  begin
 		     //PPSentropy_coding_mode_flag = 0 for baseline
 		     numbitsused = 1;
-		     nextstate = PPS 3;
+		     nextstate = tagged PPS 3;
 		  end
 		  3:
 		  begin
 		     ppspic_order_present_flag <= buffer[buffersize-1];
 		     $display( "ccl2PPSpic_order_present_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(PPSpic_order_present_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged PPSpic_order_present_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = PPS 4;
+		     nextstate = tagged PPS 4;
 		  end
 		  4:
 		  begin
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 5;
+		     nextstate = tagged PPS 5;
 		     if(expgolomb_unsigned(buffer)+1 != 1) 
 			$display( "ERROR EntropyDec: PPSnum_slice_groups not equal to 1" );//=1 for main
 		  end
 		  5:
 		  begin
 		     $display( "ccl2PPSnum_ref_idx_l0_active %0d", expgolomb_unsigned(buffer)+1 );
-		     outfifo.enq(PPSnum_ref_idx_l0_active truncate(expgolomb_unsigned(buffer)+1));
+		     outfifo.enq(tagged PPSnum_ref_idx_l0_active truncate(expgolomb_unsigned(buffer)+1));
 		     num_ref_idx_l0_active_minus1 <= truncate(expgolomb_unsigned(buffer));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 6;
+		     nextstate = tagged PPS 6;
 		  end
 		  6:
 		  begin
 		     $display( "ccl2PPSnum_ref_idx_l1_active %0d", expgolomb_unsigned(buffer)+1 );
-		     outfifo.enq(PPSnum_ref_idx_l1_active truncate(expgolomb_unsigned(buffer)+1));
+		     outfifo.enq(tagged PPSnum_ref_idx_l1_active truncate(expgolomb_unsigned(buffer)+1));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 7;
+		     nextstate = tagged PPS 7;
 		  end
 		  7:
 		  begin
 		     //PPSweighted_pred_flag = 0 for baseline; PPSweighted_bipred_idc = 0 for baseline
 		     numbitsused = 3;
-		     nextstate = PPS 8;
+		     nextstate = tagged PPS 8;
 		  end
 		  8:
 		  begin
 		     $display( "ccl2PPSpic_init_qp %0d", expgolomb_signed(buffer)+26 );
-		     outfifo_ITB.enq(PPSpic_init_qp truncate(expgolomb_signed(buffer)+26));
+		     outfifo_ITB.enq(tagged PPSpic_init_qp truncate(expgolomb_signed(buffer)+26));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 9;
+		     nextstate = tagged PPS 9;
 		  end
 		  9:
 		  begin
 		     $display( "ccl2PPSpic_init_qs %0d", expgolomb_signed(buffer)+26 );
-		     outfifo_ITB.enq(PPSpic_init_qs truncate(expgolomb_signed(buffer)+26));
+		     outfifo_ITB.enq(tagged PPSpic_init_qs truncate(expgolomb_signed(buffer)+26));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 10;
+		     nextstate = tagged PPS 10;
 		  end
 		  10:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2PPSchroma_qp_index_offset %0d", tempint );
-		     outfifo_ITB.enq(PPSchroma_qp_index_offset truncate(expgolomb_signed(buffer)));
+		     outfifo_ITB.enq(tagged PPSchroma_qp_index_offset truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = PPS 11;
+		     nextstate = tagged PPS 11;
 		  end
 		  11:
 		  begin
 		     ppsdeblocking_filter_control_present_flag <= buffer[buffersize-1];
 		     $display( "ccl2PPSdeblocking_filter_control_present_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(PPSdeblocking_filter_control_present_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged PPSdeblocking_filter_control_present_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = PPS 12;
+		     nextstate = tagged PPS 12;
 		  end
 		  12:
 		  begin
 		     $display( "ccl2PPSconstrained_intra_pred_flag %0d", buffer[buffersize-1] );
-		     outfifo.enq(PPSconstrained_intra_pred_flag buffer[buffersize-1]);
+		     outfifo.enq(tagged PPSconstrained_intra_pred_flag buffer[buffersize-1]);
 		     numbitsused = 1;
-		     nextstate = PPS 13;
+		     nextstate = tagged PPS 13;
 		  end
 		  13:
 		  begin
 		     //PPSredundant_pic_cnt_present_flag = 0 for main
 		     numbitsused = 1;
-		     nextstate = PPS 14;
+		     nextstate = tagged PPS 14;
 		     if(buffer[buffersize-1] != 0) 
 			$display( "ERROR EntropyDec: PPSredundant_pic_cnt_present_flag not equal to 0" );//=0 for main
 		  end
@@ -953,7 +953,7 @@ module mkEntropyDec( IEntropyDec );
 	    end
 	 tagged AUD .step : 
 	    begin
-	       outfifo.enq(AUDPrimaryPicType buffer[buffersize-1:buffersize-3]);
+	       outfifo.enq(tagged AUDPrimaryPicType buffer[buffersize-1:buffersize-3]);
 	       numbitsused = 3;
 	       nextstate = Start;
 	    end
@@ -979,14 +979,14 @@ module mkEntropyDec( IEntropyDec );
 		     if( shslice_type!=2 && shslice_type!=7 )
 			begin
 			   $display( "ccl2SDmb_skip_run %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDmb_skip_run truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDmb_skip_run truncate(expgolomb_unsigned(buffer)));
 			   tempreg <= truncate(expgolomb_unsigned(buffer));
 			   calcnc.nNupdate_pskip( truncate(expgolomb_unsigned(buffer)) );
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = SliceData 1;
+			   nextstate = tagged SliceData 1;
 			end
 		     else
-			nextstate = SliceData 2;
+			nextstate = tagged SliceData 2;
 		  end
 		  1:
 		  begin
@@ -994,13 +994,13 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   currMbAddr <= currMbAddr+1;//only because input assumed to comform to both baseline and main
 			   tempreg <= tempreg-1;
-			   nextstate = SliceData 1;
+			   nextstate = tagged SliceData 1;
 			end
 		     else
 			begin
 			   ////$display( "ccl2SDcurrMbAddr %0d", currMbAddr );
 			   ////outfifo.enq(SDcurrMbAddr currMbAddr);
-			   nextstate = SliceData 2;
+			   nextstate = tagged SliceData 2;
 			end
 		  end
 		  2:
@@ -1008,16 +1008,16 @@ module mkEntropyDec( IEntropyDec );
 		     if( bufcount>8 || buffer[buffersize-1]!=1 || (buffer<<1)!=0 )
 			begin
 			   calcnc.loadMb(currMbAddr);
-			   nextstate = MacroblockLayer 0;
+			   nextstate = tagged MacroblockLayer 0;
 			end
 		     else
-			nextstate = SliceData 3;
+			nextstate = tagged SliceData 3;
 		  end
 		  3:
 		  begin
 		     currMbAddr <= currMbAddr+1;//only because input assumed to comform to both baseline and main
 		     if( bufcount>8 || buffer[buffersize-1]!=1 || (buffer<<1)!=0 )
-			nextstate = SliceData 0;
+			nextstate = tagged SliceData 0;
 		     else
 			nextstate = Start;
 		  end
@@ -1030,23 +1030,23 @@ module mkEntropyDec( IEntropyDec );
 		  0:
 		  begin
 		     $display( "ccl2SDMmb_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SDMmbtype mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type) );
-		     outfifo_ITB.enq(SDMmbtype mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type) );
+		     outfifo.enq(tagged SDMmbtype mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type) );
+		     outfifo_ITB.enq(tagged SDMmbtype mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type) );
 		     sdmmbtype <= mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type);
 		     numbitsused = expgolomb_numbits(buffer);
 		     if(mbtype_convert(truncate(expgolomb_unsigned(buffer)), shslice_type) == I_PCM)
 			begin
 			   calcnc.nNupdate_ipcm();
-			   nextstate = MacroblockLayer 1;
+			   nextstate = tagged MacroblockLayer 1;
 			end
 		     else
-			nextstate = MacroblockLayer 4;
+			nextstate = tagged MacroblockLayer 4;
 		  end
 		  1:
 		  begin
 		     tempreg <= 256;
 		     numbitsused = zeroExtend(bufcount[2:0]);
-		     nextstate = MacroblockLayer 2;
+		     nextstate = tagged MacroblockLayer 2;
 		  end
 		  2:
 		  begin
@@ -1054,15 +1054,15 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   Bit#(8) outputdata = buffer[buffersize-1:buffersize-8];
 			   $display( "ccl2SDMpcm_sample_luma %0d", outputdata );
-			   outfifo.enq(SDMpcm_sample_luma outputdata);
+			   outfifo.enq(tagged SDMpcm_sample_luma outputdata);
 			   tempreg <= tempreg-1;
 			   numbitsused = 8;
-			   nextstate = MacroblockLayer 2;
+			   nextstate = tagged MacroblockLayer 2;
 			end
 		     else
 			begin
 			   tempreg <= 128;
-			   nextstate = MacroblockLayer 3;
+			   nextstate = tagged MacroblockLayer 3;
 			end
 		  end
 		  3:
@@ -1071,22 +1071,22 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   Bit#(8) outputdata = buffer[buffersize-1:buffersize-8];
 			   $display( "ccl2SDMpcm_sample_chroma %0d", outputdata );
-			   outfifo.enq(SDMpcm_sample_chroma outputdata);
+			   outfifo.enq(tagged SDMpcm_sample_chroma outputdata);
 			   tempreg <= tempreg-1;
 			   numbitsused = 8;
-			   nextstate = MacroblockLayer 3;
+			   nextstate = tagged MacroblockLayer 3;
 			end
 		     else
-			   nextstate = SliceData 3;
+			   nextstate = tagged SliceData 3;
 		  end
 		  4:
 		  begin
 		     if(sdmmbtype != I_NxN
 			&&& mbPartPredMode(sdmmbtype,0) != Intra_16x16
 			&&& numMbPart(sdmmbtype) == 4)
-			nextstate = SubMbPrediction 0;
+			nextstate = tagged SubMbPrediction 0;
 		     else
-			nextstate = MbPrediction 0;
+			nextstate = tagged MbPrediction 0;
 		  end
 		  5:
 		  begin
@@ -1108,7 +1108,7 @@ module mkEntropyDec( IEntropyDec );
 			   else
 			      $display( "ERROR EntropyDec: MacroblockLayer 5 sdmmbtype not I_16x16" );
 			end
-		     nextstate = MacroblockLayer 6;
+		     nextstate = tagged MacroblockLayer 6;
 		  end
 		  6:
 		  begin
@@ -1118,12 +1118,12 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   tempint = unpack(expgolomb_signed(buffer));
 			   $display( "ccl2SDMmb_qp_delta %0d", tempint );
-			   outfifo_ITB.enq(SDMmb_qp_delta truncate(expgolomb_signed(buffer)));
+			   outfifo_ITB.enq(tagged SDMmb_qp_delta truncate(expgolomb_signed(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = Residual 0;
+			   nextstate = tagged Residual 0;
 			end
 		     else
-			nextstate = Residual 0;
+			nextstate = tagged Residual 0;
 		  end
 		  default: $display( "ERROR EntropyDec: MacroblockLayer default step" );
 	       endcase
@@ -1136,24 +1136,24 @@ module mkEntropyDec( IEntropyDec );
 		     if(mbPartPredMode(sdmmbtype,0) == Intra_16x16)
 			begin
 			   $display( "ccl2SDMMintra_chroma_pred_mode %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMMintra_chroma_pred_mode truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMMintra_chroma_pred_mode truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = MacroblockLayer 5;
+			   nextstate = tagged MacroblockLayer 5;
 			end
 		     else if(mbPartPredMode(sdmmbtype,0) == Intra_4x4)
 			begin
 			   temp5bit <= 16;
-			   nextstate = MbPrediction 1;
+			   nextstate = tagged MbPrediction 1;
 			end
 		     else if(num_ref_idx_l0_active_minus1 > 0)
 			begin
 			   temp3bit0 <= numMbPart(sdmmbtype);
-			   nextstate = MbPrediction 2;
+			   nextstate = tagged MbPrediction 2;
 			end
 		     else
 			begin
 			   temp3bit0 <= numMbPart(sdmmbtype);
-			   nextstate = MbPrediction 3;
+			   nextstate = tagged MbPrediction 3;
 			end
 		  end
 		  1:
@@ -1161,9 +1161,9 @@ module mkEntropyDec( IEntropyDec );
 		     if(temp5bit == 0)
 			begin
 			   $display( "ccl2SDMMintra_chroma_pred_mode %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMMintra_chroma_pred_mode truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMMintra_chroma_pred_mode truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
-			   nextstate = MacroblockLayer 5;
+			   nextstate = tagged MacroblockLayer 5;
 			end
 		     else
 			begin
@@ -1172,16 +1172,16 @@ module mkEntropyDec( IEntropyDec );
 			      begin
 				 Bit#(4) tttt = buffer[buffersize-1:buffersize-4];
 				 $display( "ccl2SDMMrem_intra4x4_pred_mode %0d", tttt );
-				 outfifo.enq(SDMMrem_intra4x4_pred_mode tttt);
+				 outfifo.enq(tagged SDMMrem_intra4x4_pred_mode tttt);
 				 numbitsused = 4;
 			      end
 			   else
 			      begin
-				 outfifo.enq(SDMMrem_intra4x4_pred_mode 4'b1000);
+				 outfifo.enq(tagged SDMMrem_intra4x4_pred_mode 4'b1000);
 				 numbitsused = 1;
 			      end
 			   temp5bit <= temp5bit-1;
-			   nextstate = MbPrediction 1;
+			   nextstate = tagged MbPrediction 1;
 			end
 		  end
 		  2:
@@ -1189,45 +1189,45 @@ module mkEntropyDec( IEntropyDec );
 		     if(num_ref_idx_l0_active_minus1 == 1)
 			begin
 			   $display( "ccl2SDMMref_idx_l0 %0d", 1-buffer[buffersize-1] );
-			   outfifo.enq(SDMMref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
+			   outfifo.enq(tagged SDMMref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
 			   numbitsused = 1;
 			end
 		     else
 			begin
 			   $display( "ccl2SDMMref_idx_l0 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMMref_idx_l0 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMMref_idx_l0 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
 		     if(temp3bit0 == 1)
 			begin
 			   temp3bit0 <= numMbPart(sdmmbtype);
-			   nextstate = MbPrediction 3;
+			   nextstate = tagged MbPrediction 3;
 			end
 		     else
 			begin
 			   temp3bit0 <= temp3bit0-1;
-			   nextstate = MbPrediction 2;
+			   nextstate = tagged MbPrediction 2;
 			end
 		  end
 		  3:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMMmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMMmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMMmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = MbPrediction 4;
+		     nextstate = tagged MbPrediction 4;
 		  end
 		  4:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMMmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMMmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMMmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     temp3bit0 <= temp3bit0-1;
 		     if(temp3bit0 == 1)
-			nextstate = MacroblockLayer 5;
+			nextstate = tagged MacroblockLayer 5;
 		     else
-			nextstate = MbPrediction 3;
+			nextstate = tagged MbPrediction 3;
 		  end
 		  default: $display( "ERROR EntropyDec: MbPrediction default step" );
 	       endcase
@@ -1238,182 +1238,182 @@ module mkEntropyDec( IEntropyDec );
 		  0:
 		  begin
 		     $display( "ccl2SDMSsub_mb_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
 		     temp3bit0 <= numSubMbPart(truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 1;
+		     nextstate = tagged SubMbPrediction 1;
 		  end
 		  1:
 		  begin
 		     $display( "ccl2SDMSsub_mb_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
 		     temp3bit1 <= numSubMbPart(truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 2;
+		     nextstate = tagged SubMbPrediction 2;
 		  end
 		  2:
 		  begin
 		     $display( "ccl2SDMSsub_mb_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
 		     temp3bit2 <= numSubMbPart(truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 3;
+		     nextstate = tagged SubMbPrediction 3;
 		  end
 		  3:
 		  begin
 		     $display( "ccl2SDMSsub_mb_type %0d", expgolomb_unsigned(buffer) );
-		     outfifo.enq(SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
+		     outfifo.enq(tagged SDMSsub_mb_type truncate(expgolomb_unsigned(buffer)));
 		     temp3bit3 <= numSubMbPart(truncate(expgolomb_unsigned(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     if(num_ref_idx_l0_active_minus1 > 0
 			      && sdmmbtype != P_8x8ref0)
-			nextstate = SubMbPrediction 4;
+			nextstate = tagged SubMbPrediction 4;
 		     else
-			nextstate = SubMbPrediction 8;
+			nextstate = tagged SubMbPrediction 8;
 		  end
 		  4:
 		  begin
 		     if(num_ref_idx_l0_active_minus1 == 1)
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", 1-buffer[buffersize-1] );
-			   outfifo.enq(SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
+			   outfifo.enq(tagged SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
 			   numbitsused = 1;
 			end
 		     else
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
-		     nextstate = SubMbPrediction 5;
+		     nextstate = tagged SubMbPrediction 5;
 		  end
 		  5:
 		  begin
 		     if(num_ref_idx_l0_active_minus1 == 1)
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", 1-buffer[buffersize-1] );
-			   outfifo.enq(SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
+			   outfifo.enq(tagged SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
 			   numbitsused = 1;
 			end
 		     else
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
-		     nextstate = SubMbPrediction 6;
+		     nextstate = tagged SubMbPrediction 6;
 		  end
 		  6:
 		  begin
 		     if(num_ref_idx_l0_active_minus1 == 1)
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", 1-buffer[buffersize-1] );
-			   outfifo.enq(SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
+			   outfifo.enq(tagged SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
 			   numbitsused = 1;
 			end
 		     else
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
-		     nextstate = SubMbPrediction 7;
+		     nextstate = tagged SubMbPrediction 7;
 		  end
 		  7:
 		  begin
 		     if(num_ref_idx_l0_active_minus1 == 1)
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", 1-buffer[buffersize-1] );
-			   outfifo.enq(SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
+			   outfifo.enq(tagged SDMSref_idx_l0 zeroExtend(1-buffer[buffersize-1]));
 			   numbitsused = 1;
 			end
 		     else
 			begin
 			   $display( "ccl2SDMSref_idx_l0 %0d", expgolomb_unsigned(buffer) );
-			   outfifo.enq(SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
+			   outfifo.enq(tagged SDMSref_idx_l0 truncate(expgolomb_unsigned(buffer)));
 			   numbitsused = expgolomb_numbits(buffer);
 			end
-		     nextstate = SubMbPrediction 8;
+		     nextstate =  tagged SubMbPrediction 8;
 		  end
 		  8:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 9;
+		     nextstate = tagged SubMbPrediction 9;
 		  end
 		  9:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     temp3bit0 <= temp3bit0-1;
 		     if(temp3bit0 == 1)
-			nextstate = SubMbPrediction 10;
+			nextstate = tagged SubMbPrediction 10;
 		     else
-			nextstate = SubMbPrediction 8;
+			nextstate = tagged SubMbPrediction 8;
 		  end
 		  10:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 11;
+		     nextstate = tagged SubMbPrediction 11;
 		  end
 		  11:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     temp3bit1 <= temp3bit1-1;
 		     if(temp3bit1 == 1)
-			nextstate = SubMbPrediction 12;
+			nextstate = tagged SubMbPrediction 12;
 		     else
-			nextstate = SubMbPrediction 10;
+			nextstate = tagged SubMbPrediction 10;
 		  end
 		  12:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 13;
+		     nextstate = tagged SubMbPrediction 13;
 		  end
 		  13:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     temp3bit2 <= temp3bit2-1;
 		     if(temp3bit2 == 1)
-			nextstate = SubMbPrediction 14;
+			nextstate = tagged SubMbPrediction 14;
 		     else
-			nextstate = SubMbPrediction 12;
+			nextstate = tagged SubMbPrediction 12;
 		  end
 		  14:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
-		     nextstate = SubMbPrediction 15;
+		     nextstate = tagged SubMbPrediction 15;
 		  end
 		  15:
 		  begin
 		     tempint = unpack(expgolomb_signed(buffer));
 		     $display( "ccl2SDMSmvd_l0 %0d", tempint );
-		     outfifo.enq(SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
+		     outfifo.enq(tagged SDMSmvd_l0 truncate(expgolomb_signed(buffer)));
 		     numbitsused = expgolomb_numbits(buffer);
 		     temp3bit3 <= temp3bit3-1;
 		     if(temp3bit3 == 1)
-			nextstate = MacroblockLayer 5;
+			nextstate = tagged MacroblockLayer 5;
 		     else
-			nextstate = SubMbPrediction 14;
+			nextstate = tagged SubMbPrediction 14;
 		  end
 		  default: $display( "ERROR EntropyDec: SubMbPrediction default step" );
 	       endcase
@@ -1428,10 +1428,10 @@ module mkEntropyDec( IEntropyDec );
 		     if(mbPartPredMode(sdmmbtype,0) == Intra_16x16)
 			begin
 			   maxNumCoeff <= 16;
-			   nextstate = ResidualBlock 0;
+			   nextstate = tagged ResidualBlock 0;
 			end
 		     else
-			nextstate = Residual 1;
+			nextstate = tagged Residual 1;
 		     //$display( "TRACE EntropyDec: Residual 0" );
 		  end
 		  1:
@@ -1440,7 +1440,7 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   residualChroma <= 1;
 			   temp5bit <= 0;
-			   nextstate = Residual 3;
+			   nextstate = tagged Residual 3;
 			end
 		     else
 			begin
@@ -1454,12 +1454,12 @@ module mkEntropyDec( IEntropyDec );
 			      begin
 				 calcnc.nNupdate_luma(truncate(temp5bit),0);
 				 ////$display( "ccl2SDMRcoeffLevelZeros %0d", tempMaxNumCoeff );
-				 outfifo_ITB.enq(SDMRcoeffLevelZeros tempMaxNumCoeff);
+				 outfifo_ITB.enq(tagged SDMRcoeffLevelZeros tempMaxNumCoeff);
 				 temp5bit <= temp5bit+1;
-				 nextstate = Residual 1;
+				 nextstate = tagged Residual 1;
 			      end
 			   else
-			      nextstate = ResidualBlock 0;
+			      nextstate = tagged ResidualBlock 0;
 			end
 		     //$display( "TRACE EntropyDec: Residual 1" );
 		  end
@@ -1468,7 +1468,7 @@ module mkEntropyDec( IEntropyDec );
 		     if(temp5bit == 2)
 			begin
 			   temp5bit <= 0;
-			   nextstate = Residual 5;
+			   nextstate = tagged Residual 5;
 			end
 		     else
 			begin
@@ -1476,12 +1476,12 @@ module mkEntropyDec( IEntropyDec );
 			   if((sdmcodedBlockPatternChroma & 3) == 0)
 			      begin
 				 ////$display( "ccl2SDMRcoeffLevelZeros %0d", 4 );
-				 outfifo_ITB.enq(SDMRcoeffLevelZeros 4);
+				 outfifo_ITB.enq(tagged SDMRcoeffLevelZeros 4);
 				 temp5bit <= temp5bit+1;
-				 nextstate = Residual 3;
+				 nextstate = tagged Residual 3;
 			      end
 			   else
-			      nextstate = ResidualBlock 0;
+			      nextstate = tagged ResidualBlock 0;
 			end
 		     //$display( "TRACE EntropyDec: Residual 3" );
 		  end
@@ -1490,7 +1490,7 @@ module mkEntropyDec( IEntropyDec );
 		     if(temp5bit == 8)
 			begin
 			   temp5bit <= 0;
-			   nextstate = SliceData 3;
+			   nextstate = tagged SliceData 3;
 			end
 		     else
 			begin
@@ -1499,12 +1499,12 @@ module mkEntropyDec( IEntropyDec );
 			      begin
 				 calcnc.nNupdate_chroma(truncate(temp5bit),0);
 				 ////$display( "ccl2SDMRcoeffLevelZeros %0d", 15 );
-				 outfifo_ITB.enq(SDMRcoeffLevelZeros 15);
+				 outfifo_ITB.enq(tagged SDMRcoeffLevelZeros 15);
 				 temp5bit <= temp5bit+1;
-				 nextstate = Residual 5;
+				 nextstate = tagged Residual 5;
 			      end
 			   else
-			      nextstate = ResidualBlock 0;
+			      nextstate = tagged ResidualBlock 0;
 			end
 		     //$display( "TRACE EntropyDec: Residual 5" );
 		  end
@@ -1528,7 +1528,7 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   tempreg <= zeroExtend(6'b111111);
 			end
-		     nextstate = ResidualBlock 1;
+		     nextstate = tagged ResidualBlock 1;
 		     //$display( "TRACE EntropyDec: ResidualBlock 0 temp5bit = %0d", temp5bit);
 		  end
 		  1:
@@ -1548,7 +1548,7 @@ module mkEntropyDec( IEntropyDec );
 			temp3bit1 <= 1;//suffixLength
 		     else
 			temp3bit1 <= 0;//suffixLength
-		     nextstate = ResidualBlock 2;
+		     nextstate = tagged ResidualBlock 2;
 		     //$display( "TRACE EntropyDec: ResidualBlock 1 nC = %0d", tempreg);
 		     $display( "ccl2SDMRtotal_coeff %0d", totalCoeffTemp );
 		     $display( "ccl2SDMRtrailing_ones %0d", trailingOnesTemp );
@@ -1560,9 +1560,9 @@ module mkEntropyDec( IEntropyDec );
 			   temp5bit2 <= 0;
 			   zerosLeft <= 0;
 			   if(totalCoeff < maxNumCoeff)
-			      nextstate = ResidualBlock 3;
+			      nextstate = tagged ResidualBlock 3;
 			   else
-			      nextstate = ResidualBlock 5;
+			      nextstate = tagged ResidualBlock 5;
 			end
 		     else
 			begin
@@ -1615,7 +1615,7 @@ module mkEntropyDec( IEntropyDec );
 				 numbitsused = zeroExtend(level_prefix)+1+zeroExtend(levelSuffixSize);
 			      end
 			   temp5bit2 <= temp5bit2 + 1;
-			   nextstate = ResidualBlock 2;
+			   nextstate = tagged ResidualBlock 2;
 			end
 		  end
 		  3:
@@ -1632,16 +1632,16 @@ module mkEntropyDec( IEntropyDec );
 		     if(maxNumCoeff - totalCoeff - zeroExtend(tempZerosLeft) > 0)
 			begin
 			   $display( "ccl2SDMRcoeffLevelZeros %0d", maxNumCoeff - totalCoeff - zeroExtend(tempZerosLeft) );
-			   outfifo_ITB.enq(SDMRcoeffLevelZeros (maxNumCoeff - totalCoeff - zeroExtend(tempZerosLeft)));
+			   outfifo_ITB.enq(tagged SDMRcoeffLevelZeros (maxNumCoeff - totalCoeff - zeroExtend(tempZerosLeft)));
 			end
-		     nextstate = ResidualBlock 5;
+		     nextstate = tagged ResidualBlock 5;
 		  end
 		  4:
 		  begin
 		     $display( "ccl2SDMRcoeffLevelZeros %0d", temp5bit2 );
-		     outfifo_ITB.enq(SDMRcoeffLevelZeros temp5bit2);
+		     outfifo_ITB.enq(tagged SDMRcoeffLevelZeros temp5bit2);
 		     temp5bit2 <= 0;
-		     nextstate = ResidualBlock 5;
+		     nextstate = tagged ResidualBlock 5;
 		  end
 		  5:
 		  begin
@@ -1649,7 +1649,7 @@ module mkEntropyDec( IEntropyDec );
 			begin
 			   tempint = signExtend(unpack(cavlcFIFO.fifo.first()));
 			   $display( "ccl2SDMRcoeffLevel %0d", tempint );
-			   outfifo_ITB.enq(SDMRcoeffLevel cavlcFIFO.fifo.first());
+			   outfifo_ITB.enq(tagged SDMRcoeffLevel cavlcFIFO.fifo.first());
 			   cavlcFIFO.fifo.deq();
 			   totalCoeff <= totalCoeff-1;
 			   if( zerosLeft > 0 )
@@ -1663,24 +1663,24 @@ module mkEntropyDec( IEntropyDec );
 				    begin
 				       zerosLeft <= zerosLeft - run_before;
 				       temp5bit2 <= zeroExtend(run_before);
-				       nextstate = ResidualBlock 4;
+				       nextstate = tagged ResidualBlock 4;
 				    end
 				 else
-				    nextstate = ResidualBlock 5;
+				    nextstate = tagged ResidualBlock 5;
 			      end
 			   else
-			      nextstate = ResidualBlock 5;
+			      nextstate = tagged ResidualBlock 5;
 			end
 		     else
 			begin
 			   if(!(mbPartPredMode(sdmmbtype,0)==Intra_16x16 && maxNumCoeff==16))
 			      temp5bit <= temp5bit+1;
 			   if(residualChroma==0)
-			      nextstate = Residual 1;
+			      nextstate = tagged Residual 1;
 			   else if(maxNumCoeff==4)
-			      nextstate = Residual 3;
+			      nextstate = tagged Residual 3;
 			   else
-			      nextstate = Residual 5;
+			      nextstate = tagged Residual 5;
 			end
 		  end
 		  default: $display( "ERROR EntropyDec: ResidualBlock default step" );

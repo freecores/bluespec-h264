@@ -25,7 +25,7 @@ module mkInputGen( IInputGen );
 
    rule output_byte (index < `INPUT_SIZE);
       //$display( "ccl0inputbyte %x", rfile.sub(index) );
-      outfifo.enq(DataByte rfile.sub(index));
+      outfifo.enq(DataByte (rfile.sub(index)));
       index <= index+1;
    endrule
 
