@@ -154,7 +154,7 @@ module mkth(CLK,
   
   // actionvalue method vga_controller_data_req_get
   input  EN_vga_controller_data_req_get;
-  output [50 : 0] vga_controller_data_req_get;
+  output [51 : 0] vga_controller_data_req_get;
   output RDY_vga_controller_data_req_get;
   
   // action method bram_controller_data_input
@@ -175,7 +175,7 @@ module mkth(CLK,
   output RDY_bram_controller_data_output;
   
   // value method sram_controller_address_out
-  output [17 : 0] sram_controller_address_out;
+  output [18 : 0] sram_controller_address_out;
   output RDY_sram_controller_address_out;
   
   // value method sram_controller_data_O
@@ -216,7 +216,7 @@ module mkth(CLK,
   output RDY_sram_controller_adv_ld_out;
   
   // value method sram_controller2_address_out
-  output [17 : 0] sram_controller2_address_out;
+  output [18 : 0] sram_controller2_address_out;
   output RDY_sram_controller2_address_out;
   
   // value method sram_controller2_data_O

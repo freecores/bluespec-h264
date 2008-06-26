@@ -4,26 +4,26 @@
 module top;
 
 reg [31 : 0]    arr[0:262144];
-reg [17:0]      addr_p;  
-reg [17:0]      addr_pp;
+reg [18:0]      addr_p;  
+reg [18:0]      addr_pp;
 reg             we_p;
 reg             we_pp;
 reg             clk;
 reg             rst;
 wire [31:0]     data_in;
 wire [31:0]     data_out;
-wire [17:0]     addr;
+wire [18:0]     addr;
 wire            we;
 integer         x;
 
 reg [31 : 0]    arr2[0:262144];
-reg [17:0]      addr_p2;  
-reg [17:0]      addr_pp2;
+reg [18:0]      addr_p2;  
+reg [18:0]      addr_pp2;
 reg             we_p2;
 reg             we_pp2;
 wire [31:0]     data_in2;
 wire [31:0]     data_out2;
-wire [17:0]     addr2;
+wire [18:0]     addr2;
 wire            we2;
 
 mkTestBench tb(.CLK(clk),
