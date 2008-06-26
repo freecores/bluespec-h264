@@ -13,6 +13,7 @@ import FIFO::*;
 import FIFOF::*;
 import Vector::*;
 import IDecoupledClient::*;
+import FIFOUtility::*;
 
 import Connectable::*;
 import GetPut::*;
@@ -1149,16 +1150,16 @@ end
    interface IDecoupledClient mem_client_data;
       interface Get request_store  = fifoToGet(dataMemStoreReqQ);
       interface Get request_load   = fifoToGet(dataMemLoadReqQ);      
-      interface Put response = fifoToPut(fifofToFifo(dataMemRespQ));
+      interface Put response = fifoToPut(guardedfifofToFifo(dataMemRespQ));
    endinterface
 
    interface Client mem_client_parameter;
       interface Get request  = fifoToGet(parameterMemReqQ);
 
-      interface Put response = fifoToPut(fifofToFifo(parameterMemRespQ));
+      interface Put response = fifoToPut(guardedfifofToFifo(parameterMemRespQ));
    endinterface
 
-   interface Put ioin  = fifoToPut(fifofToFifo(infifo));
+   interface Put ioin  = fifoToPut(guardedfifofToFifo(infifo));
    interface Get ioout = fifoToGet(outfifo);
       
 endmodule
