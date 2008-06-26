@@ -518,7 +518,12 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
 	    end
 	 tagged PBoutput .xdata :
 	    begin
-	       $display( "ERROR Deblocking Filter: passing PBoutput");
+	       $display( "ERROR Deblocking Filter(%s): passing PBoutput", csStr);
+	       match {.colorFlag, .data} = xdata;
+	       if(chromaFlag != colorFlag)
+		  begin
+		     $display( "ERROR Deblocking Filter(%s): color mismatch", csStr);
+		  end
 	    end
 	 tagged EndOfFile :
 	    begin
@@ -806,17 +811,14 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
                bSfileHor.upd(xdata.blockNum, xdata.bShor);
                bSfileVer.upd(xdata.blockNum, xdata.bSver);
                $display( "TRACE Deblocking Filter(%s): horizontal bsFIFO data: %d, subblock(%0d, %0d) row: %0d, ",csStr,infifo.first(), blockHor, blockVer, pixelNum);
-	       if(blockNum != xdata.blockNum)
-                 begin
-                   $display( "PARDEBLOCK(%s) ERROR %0d cyclels: horizontal bsFIFO , subblock(%0d) expected subblock(%0d) ",csStr, total_cycles,blockNum,  xdata.blockNum);
-                 end 
+
 	    end
 	 tagged PBoutput .predOutput :
 	    begin
 	       match {.predChromaFlag, .xdata} = predOutput;
 	       if(predChromaFlag != chromaFlag)
 		  begin
-		    $display("PARDEBLOCK ERROR chroma flag mismatch in deblocking filter");
+		    $display("PARDEBLOCK deblockingFilter(%s) ERROR chroma flag mismatch in deblocking filter",csStr);
 		  end
                Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);
                if((chromaFlag == Chroma) && (blockHor[1] == 1))
@@ -938,7 +940,23 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
                  end              
 	       pixelNum <= pixelNum+1;
 	    end
-	 default: $display( "ERROR Deblocking Filter: horizontal non-PBoutput input");
+	 default: begin
+                     $display( "ERROR Deblocking Filter(%s): horizontal non-PBoutput input at sublock (%0d,%0d)", csStr,blockHor,blockVer);
+		     case(infifo.first()) matches
+	               tagged NewUnit . xdata : $display("Caused by NewUnit");
+	               tagged SPSpic_width_in_mbs .xdata : $display("Caused by SPSpic_width_in_mbs");
+	    	       tagged SPSpic_height_in_map_units .xdata : $display("Caused by SPSpic_height_in_map_units");
+	    	       tagged PPSdeblocking_filter_control_present_flag .xdata : $display("Caused by PPSdeblocking_filter_control_present_flag");
+	    	       tagged SHfirst_mb_in_slice .xdata : $display("Caused by SHfirst_mb_in_slice");
+	    	       tagged SHdisable_deblocking_filter_idc .xdata : $display("Caused by SHdisable_deblocking_filter_idc");
+	    	       tagged SHslice_alpha_c0_offset .xdata : $display("Caused by SHslice_alpha_c0_offset");
+	    	       tagged SHslice_beta_offset .xdata : $display("Caused by SHslice_beta_offset");
+	    	       tagged IBTmb_qp .xdata : $display("Caused by IBTmb_qp");
+		       tagged EndOfFile : $display("Caused by EndOfFile");
+		       default:
+	                 $display("Caused by Unknown");
+	             endcase
+		  end
       endcase
    endrule
 

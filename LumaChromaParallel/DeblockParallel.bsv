@@ -160,10 +160,13 @@ module mkDeblockFilterParallel (ParallelDeblockFilter);
         tagged  PBoutput .xdata: begin 
            match {.chromaFlag, .vec} = xdata;   
            if(chromaFlag == Chroma)
-              begin
-		 
+              begin 
                  deblockfilterchroma.ioin.put(dataIn);
               end
+	   else
+	      begin
+		 $display("PARDEBLOCK ERROR! passing luma data to chroma filter");
+	      end
         end
        
 	 default:   begin
@@ -185,6 +188,10 @@ module mkDeblockFilterParallel (ParallelDeblockFilter);
 		 
                  deblockfilterluma.ioin.put(dataIn);
               end
+	   else
+	      begin
+		 $display("PARDEBLOCK ERROR! passing chroma data to luma filter");
+	      end
         end
        
 	 default:   begin

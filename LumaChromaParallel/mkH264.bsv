@@ -60,7 +60,8 @@ module mkH264( IH264 );
    IBufferControl buffercontrol <- mkBufferControl();
 
    // Internal connections
-   mkConnection( prediction.mem_client_buffer, buffercontrol.inter_server );
+   mkConnection( prediction.mem_client_buffer_luma, buffercontrol.inter_server_luma );
+   mkConnection( prediction.mem_client_buffer_chroma, buffercontrol.inter_server_chroma );
 
    mkConnection( nalunwrap.ioout, entropydec.ioin );
    mkConnection( entropydec.ioout_InverseTrans, inversetrans.ioin );
@@ -82,6 +83,7 @@ module mkH264( IH264 );
    interface mem_clientD_parameter = deblockfilter.mem_client_parameter;
    interface buffer_client_load1   = buffercontrol.buffer_client_load1;
    interface buffer_client_load2   = buffercontrol.buffer_client_load2;
+   interface buffer_client_load3   = buffercontrol.buffer_client_load3;
    interface buffer_client_store   = buffercontrol.buffer_client_store;
 
    // Interface for output 

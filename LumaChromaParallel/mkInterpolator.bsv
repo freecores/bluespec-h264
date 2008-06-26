@@ -30,6 +30,7 @@ package mkInterpolator;
 import H264Types::*;
 import IInterpolator::*;
 import FIFO::*;
+import FIFOF::*;
 import Vector::*;
 
 import Connectable::*;
@@ -120,10 +121,17 @@ module mkInterpolator( Interpolator );
    Reg#(Bit#(2)) outBlockNum <- mkReg(0);
    Reg#(Bit#(2)) outPixelNum <- mkReg(0);
    Reg#(Bool) outDone <- mkReg(False);
-   
+
+   Reg#(Bit#(64)) total_cycles <- mkReg(0);
+
+
+   rule incr;
+     total_cycles <= total_cycles + 1;
+   endrule   
 
    rule sendEndOfFrameReq( endOfFrameFlag );
       endOfFrameFlag <= False;
+      $display("trace interpolator sending EndOfFrame");
       memReqQ.enq(IPLoadEndFrame);
    endrule
    
@@ -169,6 +177,7 @@ module mkInterpolator( Interpolator );
 	    else
 	       verAddr = truncate(verTemp);
 	 end
+      $display("PARDEBLOCK issuing Luma memory req");
       memReqQ.enq(IPLoadLuma {refIdx:reqdata.refIdx,horOutOfBounds:horOut,hor:horAddr,ver:verAddr});
       Bool verFirst = twoStage || (yfracl==2&&(xfracl==1||xfracl==3));
       Bit#(2) loadHorNumMax = (reqdata.bt==IP8x8||reqdata.bt==IP8x4 ? 1 : 0) + (horInter ? 2 : (offset2==0 ? 0 : 1));
@@ -235,7 +244,7 @@ module mkInterpolator( Interpolator );
 	 end
       if(reqdata.bt==IP16x16 || reqdata.bt==IP16x8 || reqdata.bt==IP8x16)
 	 $display( "ERROR Interpolation: loadLuma block sizes > 8x8 not supported");
-      $display( "PARDEBLOCK Trace interpolator: loadLuma %h %h %h %h %h %h %h", xfracl, yfracl, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
+      $display( "PARDEBLOCK Trace interpolator(%0d)): loadLuma %h %h %h %h %h %h %h", total_cycles,xfracl, yfracl, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
    endrule   
 
 
@@ -274,6 +283,7 @@ module mkInterpolator( Interpolator );
 	    else
 	       verAddr = truncate(verTemp);
 	 end
+      $display("PARDEBLOCK issuing Chroma memory req");
       memReqQ.enq(IPLoadChroma {refIdx:reqdata.refIdx,uv:reqdata.uv,horOutOfBounds:horOut,hor:horAddr,ver:verAddr});
       Bit#(2) loadHorNumMax = (reqdata.bt==IP4x8||reqdata.bt==IP4x4 ? (offset[1]==0||(xfracc==0&&offset!=3) ? 0 : 1) : ((reqdata.bt==IP16x16||reqdata.bt==IP16x8 ? 1 : 0) + (xfracc==0&&offset==0 ? 0 : 1)));
       Bit#(4) loadVerNumMax = (reqdata.bt==IP16x16||reqdata.bt==IP8x16 ? 7 : (reqdata.bt==IP16x8||reqdata.bt==IP8x8||reqdata.bt==IP4x8 ? 3 : 1)) + (yfracc==0 ? 0 : 1);
@@ -290,7 +300,7 @@ module mkInterpolator( Interpolator );
 		  reqfifoLoad.deq();
 	       end
 	 end
-      $display( "PARDEB Trace interpolator: loadChroma %h %h %h %h %h %h %h", xfracc, yfracc, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
+      $display( "PARDEB Trace interpolator(%0d): loadChroma %h %h %h %h %h %h %h", total_cycles, xfracc, yfracc, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
    endrule
    
 
@@ -454,7 +464,7 @@ module mkInterpolator( Interpolator );
 	       end		 
 	 end
       work1Vector8 <= work1Vector8Next;
-      $display( "PARDEBLOCK Trace interpolator: work1Luma %h %h %h %h %h %h", xfracl, yfracl, work1HorNum, work1VerNum, offset, work1Stage);
+      $display( "PARDEBLOCK Trace interpolator(%0d): work1Luma %h %h %h %h %h %h", total_cycles, xfracl, yfracl, work1HorNum, work1VerNum, offset, work1Stage);
    endrule
 
 
@@ -637,7 +647,7 @@ module mkInterpolator( Interpolator );
       work2Vector8 <= work2Vector8Next;
       work2Vector15 <= work2Vector15Next;
       resultReady <= resultReadyNext;
-      $display( "PARDEBLOCK Trace interpolator: work2Luma %h %h %h %h %h", xfracl, yfracl, work2HorNum, work2VerNum, offset);
+      $display( "PARDEBLOCK Trace interpolator%(0d): work2Luma %h %h %h %h %h",total_cycles, xfracl, yfracl, work2HorNum, work2VerNum, offset);
    endrule
 
 
@@ -762,7 +772,7 @@ module mkInterpolator( Interpolator );
 	       end
 	 end
       work1Vector8 <= work1Vector8Next;
-      $display( "PARDEBLOCK Trace interpolator: work1Chroma %h %h %h %h %h", xfracc, yfracc, work1HorNum, work1VerNum, offset);
+      $display( "PARDEBLOCK Trace interpolator(%0d): work1Chroma %h %h %h %h %h", total_cycles, xfracc, yfracc, work1HorNum, work1VerNum, offset);
    endrule
 
 
@@ -783,7 +793,7 @@ module mkInterpolator( Interpolator );
 	       work2VerNum <= work2VerNum+1;
 	 end
       resultReady <= resultReadyNext;
-      $display( "PARDEBLOCK Trace interpolator: work2Chroma %h %h", work2HorNum, work2VerNum);
+      $display( "PARDEBLOCK Trace interpolator(%0d): work2Chroma %h %h", total_cycles, work2HorNum, work2VerNum);
    endrule
 
 
@@ -796,7 +806,7 @@ module mkInterpolator( Interpolator );
 	    if(outBlockNum == 3)
 	       outDone <= True;
 	 end
-      $display( "Trace interpolator: outputing %h %h", outBlockNum, outPixelNum);
+      $display( "PARDEBLOCK Trace interpolator(%0d): outputing %h %h", total_cycles, outBlockNum, outPixelNum);
    endrule
 
 
@@ -847,17 +857,22 @@ module mkInterpolator( Interpolator );
    method Action deq();
       outfifo.deq();
    endmethod
+
    
    method Action endOfFrame();
       endOfFrameFlag <= True;
    endmethod
+
+   method InterpolatorLoadReq mem_request_first();
+     return memReqQ.first;
+   endmethod
+
+   method Action mem_request_deq();
+     memReqQ.deq;
+   endmethod
+
+   interface mem_client_resp = fifoToPut(memRespQ);
    
-   interface Client mem_client;
-      interface Get request  = fifoToGet(memReqQ);
-      interface Put response = fifoToPut(memRespQ);
-   endinterface
-
-
 endmodule
 
 

@@ -67,6 +67,7 @@ module mkTH( Empty );
       if(cyclecount > 600000000)
 	 begin
 	    $display( "ERROR mkTH: time out" );
+	    $finish(0);
 	 end
    endrule
    
@@ -80,6 +81,7 @@ module mkTH( Empty );
    mkConnection( h264.mem_clientD_parameter, memD_parameter.mem_server );
    mkConnection( h264.buffer_client_load1, framebuffer.server_load1 );
    mkConnection( h264.buffer_client_load2, framebuffer.server_load2 );
+   mkConnection( h264.buffer_client_load3, framebuffer.server_load3 );
    mkConnection( h264.buffer_client_store, framebuffer.server_store );
    mkConnection( h264.ioout, finaloutput.ioin );
    

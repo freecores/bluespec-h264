@@ -37,14 +37,14 @@ interface IPrediction;
   // Interface for inter-module io
   interface Put#(EntropyDecOT) ioin;
   interface Put#(InverseTransOT) ioin_InverseTrans;
-  interface Get#(EntropyDecOT) iooutchroma;
   interface Get#(EntropyDecOT) iooutluma;
+  interface Get#(EntropyDecOT) iooutchroma;
 
   // Interface for module to memory
   interface Client#(MemReq#(TAdd#(PicWidthSz,2),68),MemResp#(68)) mem_client_intra;
   interface Client#(MemReq#(TAdd#(PicWidthSz,2),32),MemResp#(32)) mem_client_inter;
-  interface Client#(InterpolatorLoadReq,InterpolatorLoadResp) mem_client_buffer;
-
+  interface Client#(InterpolatorLoadReq,InterpolatorLoadResp) mem_client_buffer_luma;
+  interface Client#(InterpolatorLoadReq,InterpolatorLoadResp) mem_client_buffer_chroma;
 endinterface
 
 endpackage
