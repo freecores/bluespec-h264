@@ -25,7 +25,7 @@
 # build the golden decoder
 `cd ../test/decoder/ldecod && make`;
 
-@h264files = `ls ../test/h264`;
+@h264files = `ls ./h264`;
 
 foreach(@h264files)
 {
@@ -33,7 +33,7 @@ foreach(@h264files)
  
   print $_; 
   print " ";
-  `cp ../test/h264/$_  input.264`;
+  `cp ./h264/$_  input.264`;
   system("wc input.264 | awk \'{printf(\"%08x\\n%08x\\n\", \$3, \$3, \$3, \$3)}\' > input_size.hex");
   `perl ../test/hexfilegen.pl input.264`;
   system("./simv | grep \"OUT\" | awk \'{print \$2}\' >  out.hex");
