@@ -190,7 +190,7 @@ endinterface
 
 module mkRFileSingle#( idx_t lo, idx_t hi ) ( RFileSingle#(idx_t, d_t) )
    provisos (Bits#(idx_t, si),Bits#(d_t, sa));
-   RegFile#(idx_t,d_t) rf <- mkRegFile(lo,hi);
+   RegFile#(idx_t,d_t) rf <- mkRegFileWCF(lo,hi);
    RWire#(Bit#(0)) sched_hack <- mkRWire();
    method Action upd( idx_t index, d_t data );
       rf.upd( index, data );
@@ -202,8 +202,8 @@ module mkRFileSingle#( idx_t lo, idx_t hi ) ( RFileSingle#(idx_t, d_t) )
 endmodule
    
 module mkRFileSingleFull( RFileSingle#(idx_t, d_t) )
-   provisos (Bits#(idx_t, si),Bits#(d_t, sa),Bounded#(idx_t) );
-   RegFile#(idx_t,d_t) rf <- mkRegFileFull();
+   provisos (Bits#(idx_t, si),Bits#(d_t, sa),Bounded#(idx_t),Literal#(idx_t) );
+   RegFile#(idx_t,d_t) rf <- mkRegFileWCF(0,fromInteger(valueof(TSub#(TExp#(si),1))));
    RWire#(Bit#(0)) sched_hack <- mkRWire();
    method Action upd( idx_t index, d_t data );
       rf.upd( index, data );
@@ -284,7 +284,7 @@ module mkDeblockFilter( IDeblockFilter );
 
    FIFOF#(EntropyDecOT) infifo     <- mkSizedFIFOF(deblockFilter_infifo_size);
    FIFO#(DeblockFilterOT) outfifo <- mkFIFO();
-   FIFO#(DeblockFilterOT) outfifoVertical <- mkFIFO();
+   FIFO#(DeblockFilterOT) outfifoVertical <- mkSizedFIFO(5);
 
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemReqQ       <- mkFIFO;
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkFIFO();
@@ -379,7 +379,7 @@ module mkDeblockFilter( IDeblockFilter );
    FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
 
    Reg#(Bit#(2)) columnNumber <- mkReg(0);      
- 
+  
    // Debugging register
    Reg#(Bit#(32)) fifo_full_count <- mkReg(0);
    Reg#(Bit#(32)) fifo_empty_count <- mkReg(0);
