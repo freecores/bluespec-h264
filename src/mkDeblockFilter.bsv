@@ -957,7 +957,7 @@ module mkDeblockFilter( IDeblockFilter );
       else
 	 begin  
             // We read this value from the original vector           
-	    tempV <- workVectorCols.sub({blockHor, columnNumber});	
+	    tempV <- topVector.sub({blockHor, columnNumber});	
             $display( "TRACE Deblocking Filter: vertical P (work) addr %h, orig data %h ",{blockHor, blockVer - 1, columnNumber}, tempV);   
 	    alpha = alphaInternal;
 	    beta = betaInternal;
@@ -1026,7 +1026,7 @@ module mkDeblockFilter( IDeblockFilter );
         $display( "TRACE Deblocking Filter: vertical P                 data %h                     ",  resultV[31:0]); 
         $display( "TRACE Deblocking Filter: vertical Q (work) addr %h, data %h, original data: %h  ",{blockHor,blockVer,columnNumber}, resultV[63:32], workV);
 
-        workVectorCols.upd({blockHor,columnNumber}, resultV[63:32]);            
+        topVector.upd({blockHor,columnNumber}, resultV[63:32]);            
   endrule
 end
 
@@ -1046,7 +1046,7 @@ end
             // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
             columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
           end      
-        Bit#(32) w_data <- workVectorCols.sub({blockHor, columnNumber}); 
+        Bit#(32) w_data <- topVector.sub({blockHor, columnNumber}); 
         columnToRowStore[columnNumber].enq(w_data);     
      end
    else
@@ -1058,7 +1058,7 @@ end
            // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
            columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
          end          
-       Bit#(32) w_data <- workVectorCols.sub({blockHor, columnNumber}); 
+       Bit#(32) w_data <- topVector.sub({blockHor, columnNumber}); 
        columnToRowStore[columnNumber].enq(w_data);                 
      end
   endrule
