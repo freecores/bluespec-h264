@@ -8,11 +8,14 @@ package mkTH;
 
 import H264Types::*;
 import IMemED::*;
+import IMemEDDecoupled::*;
 import IFrameBuffer::*;
 import IInputGen::*;
 import IFinalOutput::*;
+import IDecoupledClient::*;
 import IH264::*;
 import mkMemED::*;
+import mkMemEDDecoupled::*;
 import mkFrameBuffer::*;
 import mkInputGen::*;
 import mkFinalOutput::*;
@@ -33,7 +36,7 @@ module mkTH( Empty );
    IMemED#(TAdd#(PicWidthSz,1),20) memED          <- mkMemED();
    IMemED#(TAdd#(PicWidthSz,2),68) memP_intra     <- mkMemED();
    IMemED#(TAdd#(PicWidthSz,2),32) memP_inter     <- mkMemED();
-   IMemED#(TAdd#(PicWidthSz,5),32) memD_data      <- mkMemED();
+   IMemEDDecoupled#(TAdd#(PicWidthSz,5),32) memD_data      <- mkMemEDDecoupled();
    IMemED#(PicWidthSz,13)          memD_parameter <- mkMemED();
    IFrameBuffer   framebuffer   <- mkFrameBuffer();
    IFinalOutput   finaloutput   <- mkFinalOutput();
@@ -57,7 +60,11 @@ module mkTH( Empty );
    mkConnection( h264.mem_clientED, memED.mem_server );
    mkConnection( h264.mem_clientP_intra, memP_intra.mem_server );
    mkConnection( h264.mem_clientP_inter, memP_inter.mem_server );
-   mkConnection( h264.mem_clientD_data, memD_data.mem_server );
+
+   mkConnection( memD_data.request_store, h264.mem_clientD_data.request_store );
+   mkConnection( h264.mem_clientD_data.request_load, memD_data.request_load );
+   mkConnection( h264.mem_clientD_data.response, memD_data.response);
+
    mkConnection( h264.mem_clientD_parameter, memD_parameter.mem_server );
    Empty memT1 <- mkMemoryTee( h264.buffer_client_load1, framebuffer.server_load1, "MEMT1" );
    mkConnection( h264.buffer_client_load2, framebuffer.server_load2 );

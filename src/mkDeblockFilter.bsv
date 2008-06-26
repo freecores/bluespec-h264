@@ -12,6 +12,7 @@ import IDeblockFilter::*;
 import FIFO::*;
 import FIFOF::*;
 import Vector::*;
+import IDecoupledClient::*;
 
 import Connectable::*;
 import GetPut::*;
@@ -286,17 +287,18 @@ module mkDeblockFilter( IDeblockFilter );
    FIFO#(DeblockFilterOT) outfifo <- mkFIFO();
    FIFO#(DeblockFilterOT) outfifoVertical <- mkSizedFIFO(5);
 
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemReqQ       <- mkFIFO;
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemLoadReqQ       <- mkFIFO;
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemStoreReqQ       <- mkFIFO;   
 
    // This fifo needs extra buffering to act as a kind of side buffer for the bottom right blocks.
    // A better way to handle this would be a token scheme by which on chroma, the u would be loaded, 
    // and then a token would be required for the v data to come through.  rowToColumn would need to 
    // issue this token.  
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkSizedFIFO(5);
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkFIFO();
                                                                                          
                             
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqVertical              <- mkSizedFIFO(5);
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqDataSendReq           <- mkFIFO();
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqVertical              <- mkFIFO();
+ 
 
    FIFO#(MemReq#(PicWidthSz,13))          parameterMemReqQ  <- mkFIFO;
    FIFOF#(MemResp#(32))                    dataMemRespQ      <- mkFIFOF;
@@ -413,17 +415,12 @@ module mkDeblockFilter( IDeblockFilter );
 
    rule memReqMergeRowToColumnConversion;
      memReqRowToColumnConversion.deq();
-     dataMemReqQ.enq(memReqRowToColumnConversion.first());
+     dataMemStoreReqQ.enq(memReqRowToColumnConversion.first());
    endrule
  
    rule memReqMergeVertical;
      memReqVertical.deq();
-     dataMemReqQ.enq(memReqVertical.first());
-   endrule
-
-   rule memReqMergeDataSendReq;
-     memReqDataSendReq.deq();
-     dataMemReqQ.enq(memReqDataSendReq.first());
+     dataMemStoreReqQ.enq(memReqVertical.first());
    endrule
  
    rule outfifoVerticalSplit;
@@ -548,10 +545,10 @@ module mkDeblockFilter( IDeblockFilter );
       $display( "TRACE Deblocking Filter: dataSendReq %0d", dataReqCount);
       Bit#(PicWidthSz) temp = truncate(currMbHor);
 	    if(dataReqCount==1)
-	       parameterMemReqQ.enq(LoadReq (temp));
+	       parameterMemReqQ.enq(tagged LoadReq (temp));
 	    Bit#(4) temp2 = truncate(dataReqCount-1);
 	    let temp3 = {temp,chromaFlagHor,temp2}; // here the troubles begin
-            memReqDataSendReq.enq(LoadReq (temp3));
+            dataMemLoadReqQ.enq(tagged LoadReq (temp3));
 	    if(dataReqCount==16)
 	       dataReqCount <= 0;
 	    else
@@ -1136,8 +1133,9 @@ end
     process <= Passing;
   endrule
   
-   interface Client mem_client_data;
-      interface Get request  = fifoToGet(dataMemReqQ);
+   interface IDecoupledClient mem_client_data;
+      interface Get request_store  = fifoToGet(dataMemStoreReqQ);
+      interface Get request_load   = fifoToGet(dataMemLoadReqQ);      
       interface Put response = fifoToPut(fifofToFifo(dataMemRespQ));
    endinterface
 
