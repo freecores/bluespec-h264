@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.8 2008-06-26 18:04:39 jamey.hicks Exp $
+# $Id: Makefile,v 1.9 2008-06-26 18:04:51 jamey.hicks Exp $
 #
 
 default : all
@@ -61,7 +61,7 @@ bsvsrcs = \
 	$(srcdir)/IMemEDDecoupled.bsv \
 	$(srcdir)/mkMemEDDecoupled.bsv \
 	$(srcdir)/FIFOUtility.bsv \
-
+        $(srcdir)/Print.bsv \
 #--------------------------------------------------------------------
 # Build rules
 #--------------------------------------------------------------------
