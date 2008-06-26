@@ -28,7 +28,6 @@ import RWire::*;
 typedef enum                
 {
   Passing,          //not working on anything in particular
-  Initialize,
   Horizontal,
   Cleanup,
   HorizontalCleanup,
@@ -487,7 +486,12 @@ module mkDeblockFilter( IDeblockFilter );
 	    end
 	 tagged PBbS .xdata :
 	    begin
-	       process <= Initialize;
+               $display( "TRACE Deblocking Filter: initialize %0d", currMb);
+               process <= Horizontal;
+               dataReqCount <= 1;
+               filterTopMbEdgeFlag <= !(currMb<zeroExtend(picWidth) || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb-firstMb<zeroExtend(picWidth)));
+               filterLeftMbEdgeFlag <= !(currMbHor==0 || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb==firstMb));
+               filterInternalEdgesFlag <= !(disable_deblocking_filter_idc==1);
 	    end
 	 tagged PBoutput .xdata :
 	    begin
@@ -525,16 +529,14 @@ module mkDeblockFilter( IDeblockFilter );
    endrule
 
    
-   rule initialize ( process==Initialize && currMbHor<zeroExtend(picWidth) );
+/*   rule initialize ( process==Initialize && currMbHor<zeroExtend(picWidth) );
       $display( "TRACE Deblocking Filter: initialize %0d", currMb);
       process <= Horizontal;
       dataReqCount <= 1;
       filterTopMbEdgeFlag <= !(currMb<zeroExtend(picWidth) || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb-firstMb<zeroExtend(picWidth)));
       filterLeftMbEdgeFlag <= !(currMbHor==0 || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb==firstMb));
       filterInternalEdgesFlag <= !(disable_deblocking_filter_idc==1);
-      blockNum <= 0;
-      pixelNum <= 0;
-   endrule 
+   endrule */
 
    // no data comes through if we are on the top edge? kinda bogus
    rule dataSendReq ( dataReqCount>0 && currMbHor<zeroExtend(picWidth) );
@@ -551,8 +553,6 @@ module mkDeblockFilter( IDeblockFilter );
 	       dataReqCount <= dataReqCount+1;
 	 
    endrule
-
-
 
    function Action deque(FIFO#(Bit#(32)) fifo);
      return fifo.deq();
@@ -608,10 +608,12 @@ module mkDeblockFilter( IDeblockFilter );
        begin  
          verticalFilterBlock.enq(tuple3(tpl_1(rowToColumnStoreBlock.first()),data_out,chromaFlag));
 
-         $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
+         $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d chroma: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, chromaFlag, storeBottomRightBlock, data_out);
        end
    endrule
 
+
+   // XXX need to pipeline through the chromaFlagVer... It's wrong here
    // rotate row to column after applying the vertical filter
    rule columnToRowConversion;
      Bit#(32) data_out = 0;
@@ -637,6 +639,7 @@ module mkDeblockFilter( IDeblockFilter );
                           (columnToRowStore[1].first())[23:16],
                           (columnToRowStore[0].first())[23:16]};
        2'b11: begin
+
                 data_out = {(columnToRowStore[3].first())[31:24],
                             (columnToRowStore[2].first())[31:24],
                             (columnToRowStore[1].first())[31:24],
@@ -701,7 +704,7 @@ module mkDeblockFilter( IDeblockFilter );
            begin
              if((blockVer == 3) && (columnToRowState == 3))
                begin
-                 process <= Initialize;
+                 //process <= Initialize;
                end
              //check for last macro block         
 	     leftVector.upd({1'b0,blockVer,columnToRowState}, data_out);
@@ -899,17 +902,20 @@ module mkDeblockFilter( IDeblockFilter );
             $display( "TRACE Deblocking Filter: horizontal completed Mb (%0d) Chroma", currMb);
           end
         blockNum <= 0;
-        process <= Vertical;// we enter this state to wait for the vertical processing to complete
+       // process <= Vertical;// we enter this state to wait for the vertical processing to complete
         if(chromaFlagHor == 1)
           begin
-            chromaFlagHor <= 0; 
+            chromaFlagHor <= 0;
+            process <= Vertical; 
             left_intra <= curr_intra;
             left_qpc <= curr_qpc;
             left_qpy <= curr_qpy;
           end
         else 
           begin
+            process <= Horizontal;
             chromaFlagHor <= 1;
+            dataReqCount <= 1;  // Do we want to start this early?
           end 
         rowToColumnStoreBlock.enq(tuple3(blockNum,0,chromaFlagHor));
       end
@@ -925,6 +931,7 @@ module mkDeblockFilter( IDeblockFilter );
     rowToColumnStore[pixelNum].enq(work_data);
   endrule
 
+  // XXX the block numbers coming out of rows to cols look wrong check em out.
 
   // declare these to share the rule
   begin 
@@ -951,6 +958,14 @@ module mkDeblockFilter( IDeblockFilter );
   rule infifos_full(dataMemRespQ.notEmpty() && parameterMemRespQ.notEmpty());
     $display("TRACE Deblocking Filter: vertical processing has data in the input queues");
   endrule 
+  
+  rule infifos_mem(dataMemRespQ.notEmpty() );
+    $display("TRACE Deblocking Filter: vertical processing mem resp has data");
+  endrule 
+
+  rule infifos_param(parameterMemRespQ.notEmpty());
+    $display("TRACE Deblocking Filter: vertical processing has mem parameter data");
+  endrule 
 
   rule vertFiltHead;
     $display("TRACE Deblocking Filter: verticalFilterHead: %h", verticalFilterBlock.first());
@@ -971,7 +986,6 @@ module mkDeblockFilter( IDeblockFilter );
     Bit#(8) alpha;
     Bit#(5) beta;
     Vector#(3,Bit#(5)) tc0;
-
 
       $display( "TRACE Deblocking Filter: vertical subblock (%0d, %0d), chroma: %d, column: %d, data: %h", blockHor, blockVer, chromaFlag, columnNumber, workV);
       columnNumber <= columnNumber + 1;
@@ -1002,6 +1016,7 @@ module mkDeblockFilter( IDeblockFilter );
 	         Bit#(5) betaMbTop = beta_table[indexB];
 	         Vector#(3,Bit#(5)) tc0MbTop = arrayToVector(tc0_table[indexA]);
 	         tempV = xdata;
+                 $display("Trace Deblocking filter vertical memory resp deq");
                  dataMemRespQ.deq();
                  $display( "TRACE Deblocking Filter: vertical P (top) addr %h, orig data %h ",{blockVer,columnNumber}, tempV);
 	         alpha = alphaMbTop;
