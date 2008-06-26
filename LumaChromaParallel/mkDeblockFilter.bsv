@@ -406,7 +406,7 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
    // Debugging register
    Reg#(Bit#(32)) fifo_full_count <- mkReg(0);
    Reg#(Bit#(32)) fifo_empty_count <- mkReg(0);
-   Reg#(Bit#(32)) total_cycles <- mkReg(0);
+   Reg#(Bit#(64)) total_cycles <- mkReg(0);
 
 
    rule incr;
@@ -524,7 +524,7 @@ module mkDeblockFilter#(ChromaFlag chromaFlag) ( IDeblockFilter );
 	    begin
 	       infifo.deq();
 	       outfifo.enq(EDOT (infifo.first()));
-	       $display( "ccl5: EndOfFile reached");
+	       $display( "ccl5: EndOfFile reached: %0d", total_cycles);
 	       //$finish(0);
 	    end
 	 default:
