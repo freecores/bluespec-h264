@@ -55,7 +55,7 @@ module SRAM(CLK, RST_N,
    output [31 : 0]               DATA_BUS_O;
    input  [31 : 0]               DATA_BUS_I;
    output                        DATA_BUS_T;
-   output [17 : 0]               ADDR_O;
+   output [18 : 0]               ADDR_O;
    output [3 : 0]                WE_BYTES_N_O;
    output                        WE_N_O;
    output                        CE_N_O; 
@@ -68,8 +68,10 @@ module SRAM(CLK, RST_N,
    
    wire                          RD_REQ_MADE;
    
-   reg  [1:0] CTR;
-   
+   //reg  [1:0] CTR;
+   reg  [2:0] CTR;
+
+
    // Regs to pipeline incoming commands 
    reg [1:0] op_command_pipelined;
    reg [1:0] op_command_active;
@@ -77,7 +79,21 @@ module SRAM(CLK, RST_N,
    reg [data_width - 1:0] write_data_pipelined;
    reg [data_width - 1:0] write_data_active;   
 
-   FIFOL2#(.width(data_width)) q(.RST_N(RST_N),
+  SizedFIFO #(.p1width(32),
+	      .p2depth(4),
+	      .p3cntr_width(2),
+	      .guarded(1)) q(.RST_N(RST_N),
+				       .CLK(CLK),
+				       .D_IN(DATA_BUS_I[data_width-1:0]),
+				       .ENQ(RD_REQ_MADE),
+				       .DEQ(DOUT_EN),
+				       .CLR(1'b0),
+				       .D_OUT(DOUT),
+				       .FULL_N(),
+				       .EMPTY_N(DOUT_RDY));
+
+
+/*   FIFOL2#(.width(data_width)) q(.RST_N(RST_N),
                                              .CLK(CLK),
                                              .D_IN(DATA_BUS_I[data_width-1:0]),
                                              .ENQ(RD_REQ_MADE),
@@ -85,7 +101,7 @@ module SRAM(CLK, RST_N,
                                              .CLR(1'b0),
                                              .D_OUT(DOUT),
                                              .FULL_N(),
-                                             .EMPTY_N(DOUT_RDY));
+                                             .EMPTY_N(DOUT_RDY));*/
 
 
 
@@ -105,7 +121,7 @@ module SRAM(CLK, RST_N,
 
 
 
-   assign ADDR_O = (WR_EN)?(18'h0 | WR_ADDR): (18'h0 | RD_ADDR);
+   assign ADDR_O = (WR_EN)?(19'h0 | WR_ADDR): (19'h0 | RD_ADDR);
    assign DATA_BUS_O = (op_command_active != `WR_REQ)?32'bzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz: (32'h0 | write_data_active); 
    assign DATA_BUS_T = (op_command_active != `WR_REQ);  // deasserting data_bus_T will allow 
                                                         // data_bus_O to drive the bus, which 
@@ -127,7 +143,7 @@ module SRAM(CLK, RST_N,
            op_command_active <= `NOP;          
            write_data_pipelined <= 0;
            write_data_active <= 0;
-           CTR <= 2;
+           CTR <= 4;
          end
        else
          begin
