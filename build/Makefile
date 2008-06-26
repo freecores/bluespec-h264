@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.4 2008-06-26 17:57:18 jamey.hicks Exp $
+# $Id: Makefile,v 1.5 2008-06-26 17:57:33 jamey.hicks Exp $
 #
 
 default : all
@@ -54,6 +54,8 @@ bsvsrcs = \
 	$(srcdir)/mkFrameBuffer.bsv \
 	$(srcdir)/mkFinalOutput.bsv \
 	$(srcdir)/mkTH.bsv \
+        $(srcdir)/EntropyTee.bsv \
+        $(srcdir)/DeblockTee.bsv \
 
 #--------------------------------------------------------------------
 # Build rules
