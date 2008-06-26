@@ -43,7 +43,7 @@ module mkTH( Empty );
    rule countCycles ( True );
       if(cyclecount[4:0]==0) $display( "CCLCycleCount %0d", cyclecount );
       cyclecount <= cyclecount+1;
-      if(cyclecount > 60000000)
+      if(cyclecount > 600000000)
 	 begin
 	    $display( "ERROR mkTH: time out" );
 	    $finish(0);
