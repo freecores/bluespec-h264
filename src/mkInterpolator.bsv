@@ -4,7 +4,6 @@
 //
 //
 
-package mkInterpolator;
 
 import H264Types::*;
 import IInterpolator::*;
@@ -42,14 +41,27 @@ function Bit#(8) clip1y10to8( Bit#(10) innum );
       return truncate(innum);
 endfunction
 
-function Bit#(15) interpolate8to15( Bit#(8) in0, Bit#(8) in1, Bit#(8) in2, Bit#(8) in3, Bit#(8) in4, Bit#(8) in5 );
-   return zeroExtend(in0) - 5*zeroExtend(in1) + 20*zeroExtend(in2) + 20*zeroExtend(in3) - 5*zeroExtend(in4) + zeroExtend(in5);
-endfunction
+interface Interpolate8to15; 
+  method Bit#(15) interpolate(Bit#(8) in0, Bit#(8) in1, Bit#(8) in2, Bit#(8) in3, Bit#(8) in4, Bit#(8) in5);
+endinterface
 
-function Bit#(8) interpolate15to8( Bit#(15) in0, Bit#(15) in1, Bit#(15) in2, Bit#(15) in3, Bit#(15) in4, Bit#(15) in5 );
-   Bit#(20) temp = signExtend(in0) - 5*signExtend(in1) + 20*signExtend(in2) + 20*signExtend(in3) - 5*signExtend(in4) + signExtend(in5) + 512;
-   return clip1y10to8(truncate(temp>>10));
-endfunction
+module mkInterpolate8to15 (Interpolate8to15);
+   method Bit#(15) interpolate( Bit#(8) in0, Bit#(8) in1, Bit#(8) in2, Bit#(8) in3, Bit#(8) in4, Bit#(8) in5 );
+     return zeroExtend(in0) - 5*zeroExtend(in1) + 20*zeroExtend(in2) + 20*zeroExtend(in3) - 5*zeroExtend(in4) + zeroExtend(in5);
+   endmethod
+endmodule
+
+
+interface Interpolate15to8;
+  method Bit#(8) interpolate( Bit#(15) in0, Bit#(15) in1, Bit#(15) in2, Bit#(15) in3, Bit#(15) in4, Bit#(15) in5 );
+endinterface
+
+module mkInterpolate15to8 (Interpolate15to8);
+  method Bit#(8) interpolate( Bit#(15) in0, Bit#(15) in1, Bit#(15) in2, Bit#(15) in3, Bit#(15) in4, Bit#(15) in5 );
+    Bit#(20) temp = signExtend(in0) - 5*signExtend(in1) + 20*signExtend(in2) + 20*signExtend(in3) - 5*signExtend(in4) + signExtend(in5) + 512;
+    return clip1y10to8(truncate(temp>>10));
+  endmethod
+endmodule
 
 
 
@@ -65,6 +77,9 @@ module mkInterpolator( Interpolator );
                                                                                      // pixel requests.
    FIFO#(InterpolatorWT) reqfifoWork1 <- mkSizedFIFO(interpolator_reqfifoWork_size); // This is where the memory responses
                                                                                      // come from
+
+   Interpolate15to8 interpolate15to8 <- mkInterpolate15to8();
+   Interpolate8to15 interpolate8to15 <- mkInterpolate8to15();  
    Reg#(Maybe#(InterpolatorWT)) reqregWork2 <- mkReg(Invalid);
    FIFO#(Vector#(4,Bit#(8))) outfifo <- mkFIFO;
    Reg#(Bool) endOfFrameFlag <- mkReg(False);
@@ -220,7 +235,7 @@ module mkInterpolator( Interpolator );
 	 end
       if(reqdata.bt==IP16x16 || reqdata.bt==IP16x8 || reqdata.bt==IP8x16)
 	 $display( "ERROR Interpolation: loadLuma block sizes > 8x8 not supported");
-      $display( "Trace interpolator: loadLuma %h %h %h %h %h %h %h", xfracl, yfracl, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
+      $display( "Trace interpolator: loadLuma xfrac: %h yfrac: %h Hor: %h Ver: %h refIdx: %h HorAddr:%h VerAddr%h", xfracl, yfracl, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
    endrule   
 
 
@@ -277,7 +292,7 @@ module mkInterpolator( Interpolator );
 		  reqfifoLoad.deq();
 	       end
 	 end
-      $display( "Trace interpolator: loadChroma %h %h %h %h %h %h %h", xfracc, yfracc, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
+      $display( "Trace interpolator: loadChroma xfrac: %h yfrac: %h Hor: %h Ver: %h refIdx: %h horAddr: %h verAddr: %h", xfracc, yfracc, loadHorNum, loadVerNum, reqdata.refIdx, horAddr, verAddr);
    endrule
    
 
@@ -327,7 +342,7 @@ module mkInterpolator( Interpolator );
 			   end
 			for(Integer ii=0; ii<4; ii=ii+1) // horizontal filtration step.
 			   begin
-			      tempResult15[ii] = interpolate8to15(work1Vector8Next[ii],work1Vector8Next[ii+1],work1Vector8Next[ii+2],work1Vector8Next[ii+3],work1Vector8Next[ii+4],work1Vector8Next[ii+5]);
+			      tempResult15[ii] = interpolate8to15.interpolate(work1Vector8Next[ii],work1Vector8Next[ii+1],work1Vector8Next[ii+2],work1Vector8Next[ii+3],work1Vector8Next[ii+4],work1Vector8Next[ii+5]);
 			      tempResult8[ii] = clip1y10to8(truncate((tempResult15[ii]+16)>>5));
 			      if(xfracl == 1) // Seems to be averaging the quarter samples.
 				 tempResult8[ii] = truncate(({1'b0,tempResult8[ii]} + {1'b0,work1Vector8Next[ii+2]} + 1) >> 1);
@@ -366,7 +381,7 @@ module mkInterpolator( Interpolator );
 	       begin
 		  offset = offset + (xfracl==3&&(yfracl==1||yfracl==3) ? 1 : 0);
 		  for(Integer ii=0; ii<4; ii=ii+1) // apply the horizontal filtration step.
-		     tempResult15[ii] = interpolate8to15(work1Vector8[ii],work1Vector8[ii+4],work1Vector8[ii+8],work1Vector8[ii+12],work1Vector8[ii+16],readdata[ii]);
+		     tempResult15[ii] = interpolate8to15.interpolate(work1Vector8[ii],work1Vector8[ii+4],work1Vector8[ii+8],work1Vector8[ii+12],work1Vector8[ii+16],readdata[ii]);
 		  for(Integer ii=0; ii<16; ii=ii+1) // advances the work vector
 		     work1Vector8Next[ii] = work1Vector8[ii+4]; 
 		  for(Integer ii=0; ii<4; ii=ii+1) // assigns the new work vector value
@@ -441,7 +456,7 @@ module mkInterpolator( Interpolator );
 	       end		 
 	 end
       work1Vector8 <= work1Vector8Next;
-      $display( "Trace interpolator: work1Luma %h %h %h %h %h %h", xfracl, yfracl, work1HorNum, work1VerNum, offset, work1Stage);
+      $display( "Trace interpolator: work1Luma xfrac: %h yfrac: %h horNum: %h verNum: %h offset: %h workStage: %h", xfracl, yfracl, work1HorNum, work1VerNum, offset, work1Stage);
    endrule
 
 
@@ -486,7 +501,7 @@ module mkInterpolator( Interpolator );
 	    readdata = workFile.sub({(1-workFileFlag),work2VerNum,work2HorNum[0]});
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       begin
-		  tempResult8[ii] = interpolate15to8(work2Vector15[ii],work2Vector15[ii+4],work2Vector15[ii+8],work2Vector15[ii+12],work2Vector15[ii+16],readdata[ii]);
+		  tempResult8[ii] = interpolate15to8.interpolate(work2Vector15[ii],work2Vector15[ii+4],work2Vector15[ii+8],work2Vector15[ii+12],work2Vector15[ii+16],readdata[ii]);
 		  if(yfracl == 1)
 		     tempResult8[ii] = truncate(({1'b0,tempResult8[ii]} + {1'b0,clip1y10to8(truncate((work2Vector15[ii+8]+16)>>5))} + 1) >> 1);
 		  else if(yfracl == 3)
@@ -543,7 +558,7 @@ module mkInterpolator( Interpolator );
 		     end
 		  for(Integer ii=0; ii<4; ii=ii+1)
 		     begin
-			tempResult8[ii] = interpolate15to8(work2Vector15Next[ii],work2Vector15Next[ii+1],work2Vector15Next[ii+2],work2Vector15Next[ii+3],work2Vector15Next[ii+4],work2Vector15Next[ii+5]);
+			tempResult8[ii] = interpolate15to8.interpolate(work2Vector15Next[ii],work2Vector15Next[ii+1],work2Vector15Next[ii+2],work2Vector15Next[ii+3],work2Vector15Next[ii+4],work2Vector15Next[ii+5]);
 			if(xfracl == 1)
 			   tempResult8[ii] = truncate(({1'b0,tempResult8[ii]} + {1'b0,clip1y10to8(truncate((work2Vector15Next[ii+2]+16)>>5))} + 1) >> 1);
 			else if(xfracl == 3)
@@ -563,7 +578,7 @@ module mkInterpolator( Interpolator );
 		  Vector#(4,Bit#(15)) tempResult15 = replicate(0);
 		  for(Integer ii=0; ii<4; ii=ii+1)
 		     begin
-			tempResult15[ii] = interpolate8to15(work2Vector8Next[ii],work2Vector8Next[ii+1],work2Vector8Next[ii+2],work2Vector8Next[ii+3],work2Vector8Next[ii+4],work2Vector8Next[ii+5]);
+			tempResult15[ii] = interpolate8to15.interpolate(work2Vector8Next[ii],work2Vector8Next[ii+1],work2Vector8Next[ii+2],work2Vector8Next[ii+3],work2Vector8Next[ii+4],work2Vector8Next[ii+5]);
 			tempResult8[ii] = clip1y10to8(truncate((tempResult15[ii]+16)>>5));
 		     end
 		  Bit#(2) verOffset;
@@ -624,7 +639,7 @@ module mkInterpolator( Interpolator );
       work2Vector8 <= work2Vector8Next;
       work2Vector15 <= work2Vector15Next;
       resultReady <= resultReadyNext;
-      $display( "Trace interpolator: work2Luma %h %h %h %h %h", xfracl, yfracl, work2HorNum, work2VerNum, offset);
+      $display( "Trace interpolator: work2Luma xfrac: %h yfrac: %h horNum: %h verNum: %h offset: %h", xfracl, yfracl, work2HorNum, work2VerNum, offset);
    endrule
 
 
@@ -684,6 +699,7 @@ module mkInterpolator( Interpolator );
             // Apply filter?
 	    for(Integer ii=0; ii<4; ii=ii+1)
 	       begin
+                  $display("Trace interpolator: Applying filter");
 		  Bit#(14) tempVal = zeroExtend((8-xfracc))*zeroExtend((8-yfracc))*zeroExtend(tempPrev8[ii]);
 		  tempVal = tempVal + zeroExtend(xfracc)*zeroExtend((8-yfracc))*zeroExtend(tempPrev8[ii+1]);
 		  tempVal = tempVal + zeroExtend((8-xfracc))*zeroExtend(yfracc)*zeroExtend(tempWork8[ii]);
@@ -748,12 +764,27 @@ module mkInterpolator( Interpolator );
 				 end
 			   end
 			if(!allDone)
-			   reqfifoWork1.deq();
+                          begin
+			    reqfifoWork1.deq();
+                            $display("Trace Interpolator: work1Chroma finished");
+                          end
 		     end
 	       end
 	 end
       work1Vector8 <= work1Vector8Next;
-      $display( "Trace interpolator: work1Chroma %h %h %h %h %h", xfracc, yfracc, work1HorNum, work1VerNum, offset);
+
+      case (blockT) 
+         IP16x16: $display("Trace Interpolator: chroma 16x16");
+         IP16x8:  $display("Trace Interpolator: chroma 16x8");
+         IP8x16:  $display("Trace Interpolator: chroma 8x16");
+         IP8x8:   $display("Trace Interpolator: chroma 8x8");
+         IP8x4:   $display("Trace Interpolator: chroma 8x4");
+         IP4x8:   $display("Trace Interpolator: chroma 4x8");
+         IP4x4:   $display("Trace Interpolator: chroma 4x4");
+      endcase
+       
+      $display( "Trace interpolator: work1Chroma xfracc: %h yfracc: %h Hor: %h Ver: %h offset: %h", 
+                xfracc, yfracc, work1HorNum, work1VerNum, offset);
    endrule
 
 
@@ -774,7 +805,7 @@ module mkInterpolator( Interpolator );
 	       work2VerNum <= work2VerNum+1;
 	 end
       resultReady <= resultReadyNext;
-      $display( "Trace interpolator: work2Chroma %h %h", work2HorNum, work2VerNum);
+      $display( "Trace interpolator: work2Chroma Hor: %h Ver: %h", work2HorNum, work2VerNum);
    endrule
 
 
@@ -787,7 +818,7 @@ module mkInterpolator( Interpolator );
 	    if(outBlockNum == 3)
 	       outDone <= True;
 	 end
-      $display( "Trace interpolator: outputing %h %h", outBlockNum, outPixelNum);
+      $display( "Trace interpolator: outputing BlockNum: %h pixelNum: %h", outBlockNum, outPixelNum);
    endrule
 
 
@@ -797,8 +828,9 @@ module mkInterpolator( Interpolator );
       work2Done <= False;
       reqregWork2 <= (tagged Valid reqfifoWork1.first());
       workFileFlag <= 1-workFileFlag;
+      $display("Trace Interpolator: work1 finished");
       reqfifoWork1.deq();
-      $display( "Trace interpolator: switching %h %h", outBlockNum, outPixelNum);
+      $display( "Trace interpolator: switching blockNum: %h pixelNum: %h", outBlockNum, outPixelNum);
    endrule
    
 
@@ -812,7 +844,8 @@ module mkInterpolator( Interpolator );
       reqregWork2 <= (tagged Valid reqfifoWork1.first());
       workFileFlag <= 1-workFileFlag;
       reqfifoWork1.deq();
-      $display( "Trace interpolator: switching8x8 %h %h", outBlockNum, outPixelNum);
+      $display("Trace Interpolator: work1 finished");
+      $display( "Trace interpolator: switching8x8 blockNum: %h pixelNum: %h", outBlockNum, outPixelNum);
    endrule
 
 
@@ -854,4 +887,3 @@ module mkInterpolator( Interpolator );
 endmodule
 
 
-endpackage
