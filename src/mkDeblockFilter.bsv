@@ -290,10 +290,6 @@ module mkDeblockFilter( IDeblockFilter );
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemLoadReqQ       <- mkFIFO;
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemStoreReqQ       <- mkFIFO;   
 
-   // This fifo needs extra buffering to act as a kind of side buffer for the bottom right blocks.
-   // A better way to handle this would be a token scheme by which on chroma, the u would be loaded, 
-   // and then a token would be required for the v data to come through.  rowToColumn would need to 
-   // issue this token.  
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkFIFO();
                                                                                          
                             
@@ -374,14 +370,14 @@ module mkDeblockFilter( IDeblockFilter );
 
    Vector#(4, FIFO#(Bit#(32))) rowToColumnStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) rowToColumnState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkFIFO(); // The third bit 1 is to rotate the damned 
+   FIFO#(Tuple3#(Bit#(4),Bit#(1),Bit#(1))) rowToColumnStoreBlock <- mkFIFO(); // The second bit 1 is to rotate the damned 
                                                                               // last left vector block
-   FIFO#(Tuple2#(Bit#(4), Bit#(32))) verticalFilterBlock <- mkFIFO();
+   FIFO#(Tuple3#(Bit#(4), Bit#(32), Bit#(1))) verticalFilterBlock <- mkFIFO();
 
    Reg#(Bit#(2)) columnState <- mkReg(0);
    Vector#(4, FIFO#(Bit#(32))) columnToRowStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) columnToRowState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
+   FIFO#(Tuple3#(Bit#(4), Bit#(1), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
 
    Reg#(Bit#(2)) columnNumber <- mkReg(0);      
   
@@ -568,6 +564,7 @@ module mkDeblockFilter( IDeblockFilter );
      Bit#(2) blockVer = {tpl_1(rowToColumnStoreBlock.first())[3],tpl_1(rowToColumnStoreBlock.first())[1]};
      Bit#(2) blockHor = {tpl_1(rowToColumnStoreBlock.first())[2],tpl_1(rowToColumnStoreBlock.first())[0]};
      Bool storeBottomRightBlock = tpl_2(rowToColumnStoreBlock.first()) == 1;
+     Bit#(1) chromaFlag = tpl_3(rowToColumnStoreBlock.first());
 
      rowToColumnState  <= rowToColumnState + 1;
      Bit#(32) data_out = 0;
@@ -597,19 +594,19 @@ module mkDeblockFilter( IDeblockFilter );
        begin
           $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
          // The block hor calculation may be questionable... between U and V.
-         if(chromaFlagHor == 0)
+         if(chromaFlag == 0)
            begin
-             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlagHor,2'b11,rowToColumnState},data:data_out});
+             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,2'b11,rowToColumnState},data:data_out});
            end
          else
            begin  //differentiate between u and v
-             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlagHor,blockHor[1],1'b1,rowToColumnState},data:data_out});
+             memReqRowToColumnConversion.enq(StoreReq {addr:{adjustedMbHor,chromaFlag,blockHor[1],1'b1,rowToColumnState},data:data_out});
            end
                
        end
      else // pass data along to vertical filter
        begin  
-         verticalFilterBlock.enq(tuple2(tpl_1(rowToColumnStoreBlock.first()),data_out));
+         verticalFilterBlock.enq(tuple3(tpl_1(rowToColumnStoreBlock.first()),data_out,chromaFlag));
 
          $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
        end
@@ -620,6 +617,7 @@ module mkDeblockFilter( IDeblockFilter );
      Bit#(32) data_out = 0;
      Bool topValues = tpl_2(columnToRowStoreBlock.first()) == 1;
      Bit#(4) blockNumCols = tpl_1(columnToRowStoreBlock.first());
+     Bit#(1) chromaFlag = tpl_3(columnToRowStoreBlock.first());
      Bit#(2) blockHor = {blockNumCols[2],blockNumCols[0]};
      Bit#(2) blockVer = {blockNumCols[3],blockNumCols[1]} - 1; // Subtract 1, because these output values lag slightly  
      columnToRowState  <= columnToRowState + 1;  
@@ -653,10 +651,10 @@ module mkDeblockFilter( IDeblockFilter );
      // Actually send the data out. This stuff is not the bottom row or left column, and is therefore done.
      // THe bottom row was sent out to the temporary buffer in the vertical rule.  But if we're on the last row of
      // the frame, there coming here.  Also, if we're in the last block, we must output the leftvector values
-     if( !topValues && (!(blockHor==3 || (blockHor[0]==1 && chromaFlagVer==1)) || (currMbVer==picHeight-1)))
+     if( !topValues && (!(blockHor==3 || (blockHor[0]==1 && chromaFlag==1)) || (currMbVer==picHeight-1)))
        begin       
          $display( " Normal");
-         if(chromaFlagVer==0)
+         if(chromaFlag==0)
            begin
              $display("TRACE mkDeblockFilter: Outputting Luma ver{mbVer, blockVer(2), state}: %h, hor{mbHor, blockHor(2)}: %b, data: %h", {currMbVer,blockVer}, {currMbHorT,blockHor}, data_out); 
              outfifo.enq(DFBLuma {ver:{currMbVer,blockVer,columnToRowState},
@@ -677,7 +675,7 @@ module mkDeblockFilter( IDeblockFilter );
                        // Mb, we must adjust the the Mbs used.   
        begin   
          $display( " TopValues");              
-         if(chromaFlagVer==0)
+         if(chromaFlag==0)
            begin 
              $display("TRACE mkDeblockFilter: (Top Value) Outputting Luma ver{mbVer, blockVer(2), state(2)}: %b, hor{mbHor, blockHor(2)}: %h, data: %h",{currMbVer-1,2'b11,columnToRowState}, {currMbHorT,blockHor}, data_out); 
              outfifo.enq(DFBLuma {ver:{currMbVer-1,2'b11,columnToRowState},
@@ -694,16 +692,15 @@ module mkDeblockFilter( IDeblockFilter );
 	   end 
        end        
 
-     if( !topValues && (blockHor==3 || (blockHor[0]==1 && chromaFlagVer==1))) // We need to write to the left Vector which will be used in the future. These values will not be written out.
+     if( !topValues && (blockHor==3 || (blockHor[0]==1 && chromaFlag==1))) // We need to write to the left Vector which will be used in the future. These values will not be written out.
           // It may be wise at some point to 
        begin
          // We need to check for the last point in the pipeline. This is the bottom right corner of the Mb.
          $display( " Left Vector");
-	 if(chromaFlagVer==0)
+	 if(chromaFlag==0)
            begin
              if((blockVer == 3) && (columnToRowState == 3))
                begin
-                 chromaFlagVer <= 1;
                  process <= Initialize;
                end
              //check for last macro block         
@@ -715,7 +712,6 @@ module mkDeblockFilter( IDeblockFilter );
              if((blockHor == 3) && (blockVer[0] == 1) && (columnToRowState == 3))
                begin
                  $display( "TRACE Deblocking Filter: horizontal bsFIFO chroma completed");
-                 chromaFlagVer <= 0;
                  Bit#(PicWidthSz) temp = truncate(currMbHor);
                  parameterMemReqQ.enq(StoreReq {addr:temp,data:{curr_intra,curr_qpc,curr_qpy}});
                  currMb <= currMb+1;
@@ -833,7 +829,7 @@ module mkDeblockFilter( IDeblockFilter );
                        // only push in a command for the bottom leftblock.  It has to be rotated.
                        if(pixelNum == 3)
                          begin
-                           rowToColumnStoreBlock.enq(tuple2(blockNum,1));
+                           rowToColumnStoreBlock.enq(tuple3(blockNum,1,chromaFlagHor));
                          end
                     end
                    // these outputs occur in the past, so we must use the adjusted Mb numbers 
@@ -862,7 +858,7 @@ module mkDeblockFilter( IDeblockFilter );
                       begin
                         let blockHorPast = blockHor - 1;
                         let blockNumPast = {blockVer[1], blockHorPast[1], blockVer[0], blockHorPast[0]};
-                        rowToColumnStoreBlock.enq(tuple2(blockNumPast,0));                   
+                        rowToColumnStoreBlock.enq(tuple3(blockNumPast,0,chromaFlagHor));                   
                       end
                   end
                $display( "TRACE Deblocking Filter: horizontal Q (work) addr %h, data %h, original data: %h ",addrq, result[63:32], pixelq);
@@ -915,13 +911,13 @@ module mkDeblockFilter( IDeblockFilter );
           begin
             chromaFlagHor <= 1;
           end 
-        rowToColumnStoreBlock.enq(tuple2(blockNum,0));
+        rowToColumnStoreBlock.enq(tuple3(blockNum,0,chromaFlagHor));
       end
     else if(pixelNum == 3)
       begin        
         blockNum <= blockNum + 1;
         process <= Horizontal; // not done with this Mb yet.
-        rowToColumnStoreBlock.enq(tuple2(blockNum,0));
+        rowToColumnStoreBlock.enq(tuple3(blockNum,0,chromaFlagHor));
       end
     pixelNum <= pixelNum + 1;
     // push the correction into reorder block;
@@ -933,6 +929,7 @@ module mkDeblockFilter( IDeblockFilter );
   // declare these to share the rule
   begin 
    Bit#(4) blockNumCols = tpl_1(verticalFilterBlock.first());
+   Bit#(1) chromaFlag = tpl_3(verticalFilterBlock.first());
    Bit#(2) blockVer = {blockNumCols[3],blockNumCols[1]};    
    Bit#(2) blockHor = {blockNumCols[2],blockNumCols[0]};
    Bool topEdge = (blockVer==0);
@@ -941,7 +938,7 @@ module mkDeblockFilter( IDeblockFilter );
   rule vertical_filter_halt((verticalState == NormalOperation) && !((!topEdge) || (dataMemRespQ.notEmpty() && parameterMemRespQ.notEmpty()) || (currMb<zeroExtend(picWidth))));
         if(process == Vertical || process == Horizontal)
           begin
-            $display("TRACE Deblocking Filter: vertical processing halted on block: %h (%0d, %0d), column %d chromaFlag %d due to data dependency",  blockNumCols, blockHor, blockVer, columnNumber, chromaFlagVer);
+            $display("TRACE Deblocking Filter: vertical processing halted on block: %h (%0d, %0d), column %d chromaFlag %d due to data dependency",  blockNumCols, blockHor, blockVer, columnNumber, chromaFlag);
           end
 
   endrule
@@ -976,8 +973,9 @@ module mkDeblockFilter( IDeblockFilter );
     Vector#(3,Bit#(5)) tc0;
 
 
-      $display( "TRACE Deblocking Filter: vertical subblock (%0d, %0d), column: %d, data: %h", blockHor, blockVer, columnNumber, workV);
+      $display( "TRACE Deblocking Filter: vertical subblock (%0d, %0d), chroma: %d, column: %d, data: %h", blockHor, blockVer, chromaFlag, columnNumber, workV);
       columnNumber <= columnNumber + 1;
+      chromaFlagVer <= chromaFlag;
       verticalFilterBlock.deq();
       if(topEdge)
         begin
@@ -992,8 +990,8 @@ module mkDeblockFilter( IDeblockFilter );
 	         Bit#(6)  top_qpy = xparam[5:0];
                  Bit#(6)  top_qpc = xparam[11:6];
 	         Bit#(1)  top_intra = xparam[12];
-                 Bit#(6) curr_qp = (chromaFlagVer==0 ? curr_qpy : curr_qpc); // may need to check these 
-	         Bit#(6) top_qp = (chromaFlagVer==0 ? top_qpy : top_qpc);
+                 Bit#(6) curr_qp = (chromaFlag==0 ? curr_qpy : curr_qpc); // may need to check these 
+	         Bit#(6) top_qp = (chromaFlag==0 ? top_qpy : top_qpc);
 	         Bit#(7) qpavtemp = zeroExtend(curr_qp)+zeroExtend(top_qp)+1;
 	         Bit#(6) qpav = qpavtemp[6:1];
 	         Bit#(8) indexAtemp = zeroExtend(qpav)+signExtend(slice_alpha_c0_offset);
@@ -1034,8 +1032,8 @@ module mkDeblockFilter( IDeblockFilter );
       if((filter_test({workV[15:8],workV[7:0],tempV[31:24],tempV[23:16]},alpha,beta)) && ((topEdge && filterTopMbEdgeFlag)|| (!topEdge && filterInternalEdgesFlag) ))
         begin
           $display("TRACE mkDeblockFilter: Applying vertical filter");
-          Bit#(3) bsData <- bSfileVer.sub((chromaFlagVer==0?blockNumCols:{blockVer[0],blockHor[0],1'b0,columnNumber[1]}));
-	  resultV = filter_input(resultV,chromaFlagVer==1,bsData,alpha,beta,tc0);
+          Bit#(3) bsData <- bSfileVer.sub((chromaFlag==0?blockNumCols:{blockVer[0],blockHor[0],1'b0,columnNumber[1]}));
+	  resultV = filter_input(resultV,chromaFlag==1,bsData,alpha,beta,tc0);
         end
       //Write out the result data  31:0 are the done q values
       if(topEdge)
@@ -1046,7 +1044,7 @@ module mkDeblockFilter( IDeblockFilter );
               begin
                 if(columnNumber == 3)
                   begin
-                    columnToRowStoreBlock.enq(tuple2(blockNumCols,1'b1));
+                    columnToRowStoreBlock.enq(tuple3(blockNumCols,1'b1,chromaFlag));
                   end
                 columnToRowStore[columnNumber].enq(resultV[31:0]);
               end
@@ -1058,7 +1056,7 @@ module mkDeblockFilter( IDeblockFilter );
             // The values to store are in the P vector... except the bottom right block, which is different.
             Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);   
             
-            if(((blockVer == 3) && (blockHor == 3)) || ((chromaFlagVer == 1) && (blockVer == 1) && (blockHor[0] == 1)))
+            if(((blockVer == 3) && (blockHor == 3)) || ((chromaFlag == 1) && (blockVer == 1) && (blockHor[0] == 1)))
               begin
                 // need to enter escape state to write the bottom left block to the leftVector. 
                 if(columnNumber == 3)
@@ -1068,7 +1066,7 @@ module mkDeblockFilter( IDeblockFilter );
                     verticalState <= VerticalCleanup;
                   end                
               end  
-            else if((blockVer == 3) || ((chromaFlagVer == 1) && (blockVer == 1)))
+            else if((blockVer == 3) || ((chromaFlag == 1) && (blockVer == 1)))
               begin
                 if((currMbVer == picHeight - 1) && (columnNumber == 3)) // If we're at the bottom of the frame, we'd 
                                                                         // roll through the block clean up.
@@ -1077,12 +1075,12 @@ module mkDeblockFilter( IDeblockFilter );
                     $display("TRACE Deblocking Filter: heading to vertical cleanup");
                     verticalState <= VerticalCleanup;
                   end                 
-                memReqVertical.enq(StoreReq {addr:{currMbHorT,chromaFlagVer,blockHor,columnNumber},data:resultV[63:32]});
+                memReqVertical.enq(StoreReq {addr:{currMbHorT,chromaFlag,blockHor,columnNumber},data:resultV[63:32]});
               end
             columnToRowStore[columnNumber].enq(resultV[31:0]);
             if(columnNumber == 0)
               begin
-                columnToRowStoreBlock.enq(tuple2(blockNumCols,1'b0));
+                columnToRowStoreBlock.enq(tuple3(blockNumCols,1'b0,chromaFlag));
               end            
 	 end
 
@@ -1107,7 +1105,7 @@ end
         if(columnNumber == 3)
           begin
             // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
-            columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
+            columnToRowStoreBlock.enq(tuple3({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0,chromaFlagVer));
           end      
         Bit#(32) w_data <- topVector.sub({blockHor, columnNumber}); 
         columnToRowStore[columnNumber].enq(w_data);     
@@ -1119,7 +1117,7 @@ end
        if(columnNumber == 3)
          begin
            // Horizontal Postion is 3, but vertical position is 0, owing to subtraction in the rotation unit
-           columnToRowStoreBlock.enq(tuple2({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0));
+           columnToRowStoreBlock.enq(tuple3({blockVer[1],blockHor[1],blockVer[0],blockHor[0]},1'b0,chromaFlagVer));
          end          
        Bit#(32) w_data <- topVector.sub({blockHor, columnNumber}); 
        columnToRowStore[columnNumber].enq(w_data);                 
