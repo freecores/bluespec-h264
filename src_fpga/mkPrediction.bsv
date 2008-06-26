@@ -209,6 +209,10 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(2)) interIPSubMbPartNum <- mkReg(0);
 
    Reg#(Bit#(PicWidthSz)) interCurrMbDiff <- mkReg(0);
+   FIFO#(Tuple2#(Bit#(2),Bit#(2))) interBSfifo <- mkSizedFIFO(32);
+   Reg#(Bool) interBSoutput <- mkReg(True);
+   Reg#(Vector#(4,Bool)) interTopNonZeroTransCoeff <- mkRegU();
+   Reg#(Vector#(4,Bool)) interLeftNonZeroTransCoeff <- mkRegU();
    FIFO#(InterBlockMv) interOutBlockMvfifo <- mkSizedFIFO(8);
    
    
@@ -547,11 +551,29 @@ module mkPrediction( IPrediction );
 	 end
       else if(nextoutputfifo.first() == SkipMB)
 	 begin
-	    outputVector = predictedfifo.first();
-	    outfifo.enq(tagged PBoutput outputVector);
-	    outputFlag = 1;
-	    predictedfifo.deq();
-	    $display( "Trace Prediction: outputing SkipMB out %h %h %h", outBlockNum, outPixelNum, outputVector);
+           if(interBSoutput && outChromaFlag==0 && outPixelNum==0)
+	       begin
+		  interBSoutput <= False;
+		  interBSfifo.deq();
+		  Bit#(2) tempHorBS = tpl_1(interBSfifo.first());
+		  Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
+		  Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
+		  Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
+		  outfifo.enq(PBbS {bShor:horBS,bSver:verBS});
+		  interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
+		  interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);
+		  $display( "Trace Prediction: outputing SkipMB bS %h %h %h %h", outBlockNum, outPixelNum, currMbHor, currMbVer);
+	       end
+	    else
+	       begin
+		  interBSoutput <= True;
+		  outputVector = predictedfifo.first();
+		  outfifo.enq(PBoutput outputVector);
+		  outputFlag = 1;
+		  predictedfifo.deq();
+		  $display( "Trace Prediction: outputing SkipMB out %h %h %h", outBlockNum, outPixelNum, outputVector);
+	       end
+	 
 	 end
       else
 	 begin
@@ -565,32 +587,82 @@ module mkPrediction( IPrediction );
 		  end
 	       tagged ITBresidual .xdata :
 		  begin
-		     Bit#(11) tempOutputValue = 0;
-		     for(Integer ii=0; ii<4; ii=ii+1)
+
+		     if(interBSoutput && outChromaFlag==0 && outPixelNum==0)
+
 			begin
-			   tempOutputValue = signExtend(xdata[ii]) + zeroExtend((predictedfifo.first())[ii]);
-			   if(tempOutputValue[10]==1)
-			      outputVector[ii] = 0;
-			   else if(tempOutputValue[9:0] > 255)
-			      outputVector[ii] = 255;
+			   interBSoutput <= False;
+			   if(outstatefifo.first() != Inter)
+			      outfifo.enq(PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3)});
+
+
 			   else
-			      outputVector[ii] = tempOutputValue[7:0];
+			      begin
+				 interBSfifo.deq();
+				 Bit#(2) tempHorBS = tpl_1(interBSfifo.first());
+				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
+				 Bit#(3) horBS = (tempHorBS==3 ? 4 : 2);
+				 Bit#(3) verBS = (tempVerBS==3 ? 4 : 2);
+				 outfifo.enq(PBbS {bShor:horBS,bSver:verBS});
+			      end
+			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, True);
+			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, True);
+			   $display( "Trace Prediction: outputing ITBresidual bS %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, currMbHor, currMbVer);
 			end
-		     outfifo.enq(tagged PBoutput outputVector);
-		     infifo_ITB.deq();
-		     predictedfifo.deq();
-		     outputFlag = 1;
-		     $display( "Trace Prediction: outputing ITBresidual out %h %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), xdata, outputVector);
+		     else
+			begin
+			   interBSoutput <= True;
+			   Bit#(11) tempOutputValue = 0;
+			   for(Integer ii=0; ii<4; ii=ii+1)
+			      begin
+				 tempOutputValue = signExtend(xdata[ii]) + zeroExtend((predictedfifo.first())[ii]);
+				 if(tempOutputValue[10]==1)
+				    outputVector[ii] = 0;
+				 else if(tempOutputValue[9:0] > 255)
+				    outputVector[ii] = 255;
+				 else
+				    outputVector[ii] = tempOutputValue[7:0];
+			      end
+			   outfifo.enq(PBoutput outputVector);
+			   infifo_ITB.deq();
+			   predictedfifo.deq();
+			   outputFlag = 1;
+			   $display( "Trace Prediction: outputing ITBresidual out %h %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), xdata, outputVector);
+			end
+	
 		  end
 	       tagged ITBcoeffLevelZeros :
 		  begin
-		     if(outPixelNum == 12)
-			infifo_ITB.deq();
-		     outputVector = predictedfifo.first();
-		     outfifo.enq(tagged PBoutput outputVector);
-		     outputFlag = 1;
-		     predictedfifo.deq();
-		     $display( "Trace Prediction: outputing ITBcoeffLevelZeros out %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), outputVector);
+		     if(interBSoutput && outChromaFlag==0 && outPixelNum==0)
+			begin
+			   interBSoutput <= False;
+			   if(outstatefifo.first() != Inter)
+			      outfifo.enq(PBbS {bShor:(blockHor==0 ? 4 : 3),bSver:(blockVer==0 ? 4 : 3)});
+			   else
+			      begin
+				 interBSfifo.deq();
+				 Bit#(2) tempHorBS = tpl_1(interBSfifo.first());
+				 Bit#(2) tempVerBS = tpl_2(interBSfifo.first());
+				 Bit#(3) horBS = (tempHorBS==3 ? 4 : (interLeftNonZeroTransCoeff[blockVer] ? 2 : zeroExtend(tempHorBS)));
+				 Bit#(3) verBS = (tempVerBS==3 ? 4 : (interTopNonZeroTransCoeff[blockHor]&&blockVer!=0 ? 2 : zeroExtend(tempVerBS)));
+				 outfifo.enq(PBbS {bShor:horBS,bSver:verBS});
+			      end
+			   interLeftNonZeroTransCoeff <= update(interLeftNonZeroTransCoeff, blockVer, False);
+			   interTopNonZeroTransCoeff <= update(interTopNonZeroTransCoeff, blockHor, False);
+			   $display( "Trace Prediction: outputing ITBcoeffLevelZeros bS %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, currMbHor, currMbVer);
+			end
+		     else
+			begin
+			   interBSoutput <= True;
+			   if(outPixelNum == 12)
+			      infifo_ITB.deq();
+			   outputVector = predictedfifo.first();
+			   outfifo.enq(PBoutput outputVector);
+			   outputFlag = 1;
+			   predictedfifo.deq();
+			   $display( "Trace Prediction: outputing ITBcoeffLevelZeros out %h %h %h %h %h", outChromaFlag, outBlockNum, outPixelNum, predictedfifo.first(), outputVector);
+			end
+
 		  end
 	       default: $display( "ERROR Prediction: outputing unknown infifo_ITB input" );
 	    endcase
@@ -683,7 +755,7 @@ module mkPrediction( IPrediction );
 		  InterBlockMv outBlockMv = interOutBlockMvfifo.first();
 		  if(outBlockMv matches tagged BlockMv .bdata)
 		     begin
-			outBlockMv = (BlockMv {refIdx:bdata.refIdx,mvhor:bdata.mvhor,mvver:bdata.mvver,nonZeroTransCoeff:0});
+			outBlockMv = (BlockMv {refIdx:bdata.refIdx,mvhor:bdata.mvhor,mvver:bdata.mvver,nonZeroTransCoeff:(interTopNonZeroTransCoeff[pixelVer]?1:0)});
 			interOutBlockMvfifo.deq();
 		     end
 		  else if(pixelVer==3)
@@ -1132,15 +1204,61 @@ module mkPrediction( IPrediction );
 	    mvverfinalR <= mvverfinal;
 	    interNewestMvNextR <= interNewestMvNext;
 	    interStepCount <= 3;
+
+
+
+
+
+
+      Bit#(2) tempBShor = 0;//bS calculation
+      Bit#(2) tempBSver = 0;
+      if(interLeftVal[blockVer] matches tagged BlockMv .xdata)
+	 begin
+	    if(xdata.nonZeroTransCoeff == 1)
+	       tempBShor = 2;
+	    else
+	       begin
+		  if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
+		     tempBShor = 1;
+		  else
+		     tempBShor = 0;
+	       end
 	 end
       else
+	 tempBShor = 3;
+      if(interTopVal[blockHor] matches tagged BlockMv .xdata)
 	 begin
+	    if(xdata.nonZeroTransCoeff == 1)
+	       tempBSver = 2;
+	    else
+	       begin
+		  if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
+		     tempBSver = 1;
+		  else
+		     tempBSver = 0;
+	       end
+	 end
+      else
+	 tempBSver = 3;
+
+           interBSfifo.enq(tuple2(tempBShor,tempBSver));
+
+
+
+
+
+
+	 end
+      else //; interstepcount 3
+	 begin
+
+
 	    Bool allDone = False;
 	    Bit#(4) refIndex = refIndexR;
 	    Bit#(14) mvhorfinal = mvhorfinalR;
 	    Bit#(12) mvverfinal = mvverfinalR;
 	    Bit#(5) interNewestMvNext = interNewestMvNextR;
-	    
+ 	    
 	    Vector#(5,InterBlockMv) interTopValNext = interTopVal;//update inter*Val
 	    Vector#(4,InterBlockMv) interLeftValNext = interLeftVal;
 	    Vector#(4,InterBlockMv) interTopLeftValNext = interTopLeftVal;
