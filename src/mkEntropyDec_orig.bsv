@@ -1,9 +1,7 @@
 //**********************************************************************
-// Entropy Decoder (parser) implementation
+// Entropy Decoder implementation
 //----------------------------------------------------------------------
-// Section 7 in spec
 //
-// Older version that takes a few more cycles at some points
 //
 
 package mkEntropyDec;

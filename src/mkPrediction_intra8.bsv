@@ -1,9 +1,7 @@
 //**********************************************************************
 // Prediction
 //----------------------------------------------------------------------
-// Sections 8.3 and 8.4 in spec
 //
-// Intra prediction processes 1 sample per cycle
 //
 
 package mkPrediction;

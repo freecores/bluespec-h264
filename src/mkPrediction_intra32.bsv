@@ -1,10 +1,7 @@
 //**********************************************************************
 // Prediction
 //----------------------------------------------------------------------
-// Sections 8.3 and 8.4 in spec
 //
-// Intra prediction processes 4 samples per cycle
-// Can be modified (parametrized) to process 1, 2, or 4 samples per cycle
 //
 
 package mkPrediction;

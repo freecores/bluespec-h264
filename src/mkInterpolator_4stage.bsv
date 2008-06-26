@@ -1,10 +1,7 @@
 //**********************************************************************
 // interpolator implementation
 //----------------------------------------------------------------------
-// Section 8.4.2.2 in spec
 //
-// Interpolation processing pipelined into 2 stages
-// Uses quite a bit more storage
 //
 
 package mkInterpolator;
