@@ -25,28 +25,40 @@ module top;
 
   reg clk   = 0;
   reg reset = 0;
-  
-   always #5 clk = ~clk; // this corresponds to 10ns duty cycle?
+  integer i = 0;
+   
+   always@(*)
+     begin 
+       #5 clk <= ~clk; // this corresponds to 10ns duty cycle?
+     end
 
   mkTH th( .CLK(clk), .RST_N(reset) );
   
   initial
   begin
     // This turns on VCD (plus) output
-    $sdf_annotate("./top.sdf",th.h264);
+    //$sdf_annotate("./top.sdf",th.h264);
     $dumpfile("dump.vcd");
-    $dumpvars;
+    $dumpvars(0,th.h264);
      $dumpoff;
   
      clk = 0;
      #30;
      reset = 1;
-     #7200;
-     $dumpon;
-     #60000;
-     $dumpoff;
-     #1000;
-     $finish; 
+  
+     for( i = 0; i < 10000; i=i+1)
+       begin
+	  $dumpoff;
+	  $display("XXX DUMPOFF");
+	  #100000;
+	  $dumpon;
+	  $display("XXX DUMPON");
+	  $dumpvars(0,th.h264);
+	  #10000;
+	  $dumpoff;
+       end 
+     $finish;
+   
   end 
      
 endmodule 
