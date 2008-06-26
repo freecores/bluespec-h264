@@ -226,6 +226,19 @@ module mkTopVector(ITopVector);
   method upd = topVector.upd;
 endmodule
 
+interface IbSVector;
+  method ActionValue#(Bit#(3)) sub(Bit#(4) addr); 
+  method Action upd(Bit#(4) addr, Bit#(3) data);  
+endinterface
+ 
+(*synthesize*)
+module mkbSVector(IbSVector);
+  RFile1#(Bit#(4),Bit#(3)) bsVector <- mkRFile1Full();
+  method sub = bsVector.sub;
+  method upd = bsVector.upd;
+endmodule
+
+
 
 
 
@@ -307,8 +320,8 @@ module mkDeblockFilter( IDeblockFilter );
    ITopVector  topVector  <- mkTopVector();
    Reg#(Bit#(16)) topVectorValidBits <- mkReg(0);  
 
-
-   RegFile#(Bit#(4),Tuple2#(Bit#(3),Bit#(3))) bSfile <- mkRegFileFull();
+   IbSVector bSfileHor <- mkbSVector();
+   IbSVector bSfileVer <- mkbSVector();
 
    Reg#(Bit#(6)) cleanup_state <- mkReg(0);
 
@@ -487,31 +500,32 @@ module mkDeblockFilter( IDeblockFilter );
      Bit#(2) blockHor = {tpl_1(rowToColumnStoreBlock.first())[2],tpl_1(rowToColumnStoreBlock.first())[0]};
      Bool storeBottomRightBlock = tpl_2(rowToColumnStoreBlock.first()) == 1;
 
+     rowToColumnState  <= rowToColumnState + 1;
+     Bit#(32) data_out = 0;
+     Bit#(PicWidthSz) adjustedMbHor = ((currMbHor==0) ? (picWidth-1) : truncate(currMbHor-1));
+                 
+     case(rowToColumnState)
+       2'b00: data_out = {(rowToColumnStore[3].first())[7:0], (rowToColumnStore[2].first())[7:0],
+                          (rowToColumnStore[1].first())[7:0], (rowToColumnStore[0].first())[7:0]};
+           
+       2'b01: data_out = {(rowToColumnStore[3].first())[15:8], (rowToColumnStore[2].first())[15:8],
+                          (rowToColumnStore[1].first())[15:8], (rowToColumnStore[0].first())[15:8]};
+
+       2'b10: data_out = {(rowToColumnStore[3].first())[23:16], (rowToColumnStore[2].first())[23:16],
+                          (rowToColumnStore[1].first())[23:16], (rowToColumnStore[0].first())[23:16]};
+
+       2'b11: begin
+                data_out = {(rowToColumnStore[3].first())[31:24], (rowToColumnStore[2].first())[31:24],
+                            (rowToColumnStore[1].first())[31:24], (rowToColumnStore[0].first())[31:24]};
+                mapM_(deque, rowToColumnStore); // Deq the vector elements
+                rowToColumnStoreBlock.deq();
+             end
+       endcase
+
      if(storeBottomRightBlock) // The right bottom block is not complete until the top filtering has occured 
                                // It has to be rotated to the column major ordering used in the top vector 
                                // memory
        begin
-         rowToColumnState  <= rowToColumnState + 1;
-         Bit#(32) data_out = 0;
-         Bit#(PicWidthSz) adjustedMbHor = ((currMbHor==0) ? (picWidth-1) : truncate(currMbHor-1));
-                 
-         case(rowToColumnState)
-           2'b00: data_out = {(rowToColumnStore[3].first())[7:0], (rowToColumnStore[2].first())[7:0],
-                              (rowToColumnStore[1].first())[7:0], (rowToColumnStore[0].first())[7:0]};
-           
-           2'b01: data_out = {(rowToColumnStore[3].first())[15:8], (rowToColumnStore[2].first())[15:8],
-                              (rowToColumnStore[1].first())[15:8], (rowToColumnStore[0].first())[15:8]};
-
-           2'b10: data_out = {(rowToColumnStore[3].first())[23:16], (rowToColumnStore[2].first())[23:16],
-                              (rowToColumnStore[1].first())[23:16], (rowToColumnStore[0].first())[23:16]};
-
-           2'b11: begin
-                    data_out = {(rowToColumnStore[3].first())[31:24], (rowToColumnStore[2].first())[31:24],
-                                (rowToColumnStore[1].first())[31:24], (rowToColumnStore[0].first())[31:24]};
-                    mapM_(deque, rowToColumnStore); // Deq the vector elements
-                    rowToColumnStoreBlock.deq();
-                  end
-         endcase
           $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
          // The block hor calculation may be questionable... between U and V.
          if(chromaFlag == 0)
@@ -525,38 +539,10 @@ module mkDeblockFilter( IDeblockFilter );
                
        end
      else // pass data along to vertical filter
-       begin 
-         rowToColumnState  <= rowToColumnState + 1;
-         Bit#(32) data_out = 0;
-         case(rowToColumnState)  
-           2'b00: data_out = {(rowToColumnStore[3].first())[7:0],
-                              (rowToColumnStore[2].first())[7:0],
-                              (rowToColumnStore[1].first())[7:0],
-                              (rowToColumnStore[0].first())[7:0]};
-                              
-           2'b01: data_out = {(rowToColumnStore[3].first())[15:8],
-                              (rowToColumnStore[2].first())[15:8],
-                              (rowToColumnStore[1].first())[15:8],
-                              (rowToColumnStore[0].first())[15:8]};
-                              
-           2'b10: data_out = {(rowToColumnStore[3].first())[23:16],
-                              (rowToColumnStore[2].first())[23:16],
-                              (rowToColumnStore[1].first())[23:16],
-                              (rowToColumnStore[0].first())[23:16]};
-                             
-           2'b11: begin
-                    data_out = {(rowToColumnStore[3].first())[31:24],
-                                (rowToColumnStore[2].first())[31:24],
-                                (rowToColumnStore[1].first())[31:24],
-                                (rowToColumnStore[0].first())[31:24]};
-                    mapM_(deque, rowToColumnStore); // Deq the vector elements
-                    rowToColumnStoreBlock.deq();
-                  end
-         endcase     
-         verticalFilterBlock.enq(tuple2(tpl_1(rowToColumnStoreBlock.first()),
-                                        data_out));
+       begin  
+         verticalFilterBlock.enq(tuple2(tpl_1(rowToColumnStoreBlock.first()),data_out));
 
-          $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
+         $display( "TRACE Deblocking Filter: rowToColumnRotate rotating block (%0d, %0d) rowtoColumnState: %d bottomRightBlock: %d, data: %h", blockHor, blockVer, rowToColumnState, storeBottomRightBlock, data_out);
        end
    endrule
 
@@ -715,8 +701,9 @@ module mkDeblockFilter( IDeblockFilter );
       case (infifo.first()) matches
 	 tagged PBbS .xdata :
 	    begin
-	       infifo.deq();
-	       bSfile.upd(blockNum,tuple2(xdata.bShor,xdata.bSver));
+	       infifo.deq();	       
+               bSfileHor.upd(blockNum, xdata.bShor);
+               bSfileVer.upd(blockNum, xdata.bSver);
                $display( "TRACE Deblocking Filter: horizontal bsFIFO data: %d, subblock(%0d, %0d) row: %0d, ",infifo.first(), blockHor, blockVer, pixelNum);
 	    end
 	 tagged PBoutput .xdata :
@@ -754,16 +741,16 @@ module mkDeblockFilter( IDeblockFilter );
                     Vector#(3,Bit#(5)) tc0MbLeft = arrayToVector(tc0_table[indexA]);
 		    if(filter_test({pixelq[15:0],pixelp[31:16]},alphaMbLeft,betaMbLeft))
                       begin
-                         let bsData = bSfile.sub((chromaFlag==0?blockNum:{blockNum[1:0],pixelVer[1],1'b0}));
-                         result = filter_input({pixelq,pixelp},chromaFlag==1,tpl_1(bsData),alphaMbLeft,betaMbLeft,tc0MbLeft);
+                         Bit#(3) bsData <- bSfileHor.sub((chromaFlag==0?blockNum:{blockNum[1:0],pixelVer[1],1'b0}));
+                         result = filter_input({pixelq,pixelp},chromaFlag==1,bsData,alphaMbLeft,betaMbLeft,tc0MbLeft);
                        end
 		  end
 	       else if(!leftEdge && filterInternalEdgesFlag)
 		  begin
 		     if(filter_test({pixelq[15:0],pixelp[31:16]},alphaInternal,betaInternal))
                        begin
-                         let bSData = bSfile.sub((chromaFlag==0?blockNum:{blockNum[1:0],pixelVer[1],1'b0})); 
-                         result = filter_input({pixelq,pixelp},chromaFlag==1,tpl_1(bSData),alphaInternal,betaInternal,tc0Internal);
+                         Bit#(3) bSData <- bSfileHor.sub((chromaFlag==0?blockNum:{blockNum[1:0],pixelVer[1],1'b0})); 
+                         result = filter_input({pixelq,pixelp},chromaFlag==1,bSData,alphaInternal,betaInternal,tc0Internal);
                        end
 		  end
                Bit#(PicWidthSz) currMbHorT = truncate(currMbHor);
@@ -943,9 +930,8 @@ module mkDeblockFilter( IDeblockFilter );
       $display( "TRACE Deblocking Filter: vertical Filter test: P1P0Q0Q1: %h",{workV[15:8],workV[7:0],tempV[31:24],tempV[23:16]}); 
       if((filter_test({workV[15:8],workV[7:0],tempV[31:24],tempV[23:16]},alpha,beta)) && (!topEdge || filterTopMbEdgeFlag))
         begin
-        //let bsData = bSfile.sub(blockNumCols & {1'b1,~chromaFlag,2'b11}); 
-        let bsData = bSfile.sub((chromaFlag==0?blockNumCols:{blockVer[0],blockHor[0],1'b0,columnNumber[1]}));
-	 resultV = filter_input(resultV,chromaFlag==1,tpl_2(bsData),alpha,beta,tc0);
+        Bit#(3) bsData <- bSfileVer.sub((chromaFlag==0?blockNumCols:{blockVer[0],blockHor[0],1'b0,columnNumber[1]}));
+	 resultV = filter_input(resultV,chromaFlag==1,bsData,alpha,beta,tc0);
         end
       //Write out the result data  31:0 are the done q values
       if(topEdge)
