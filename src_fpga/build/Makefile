@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.1 2008-06-26 17:48:16 jamey.hicks Exp $
+# $Id: Makefile,v 1.2 2008-06-26 17:52:25 jamey.hicks Exp $
 #
 
 default : all
@@ -64,6 +64,7 @@ bsvsrcs = \
 	$(srcdir)/mkMemClient.bsv \
 	$(srcdir)/mkBRAMMemController.bsv \
         $(srcdir)/mkRoundRobinMemScheduler.bsv \
+        $(srcdir)/mkReadFirstRoundRobinMemScheduler.bsv \
         $(srcdir)/mkPriorityRoundRobinMemScheduler.bsv \
         $(srcdir)/BRAM.bsv \
         $(srcdir)/FIFO_2.bsv \
@@ -88,7 +89,7 @@ BSC_COMP = bsc
 #BSC_OPTS = -u -show-module-use - -keep-fires -aggressive-conditions \
 #           -relax-method-earliness -relax-method-urgency -v
 
-BSC_OPTS = -u -v -sim -aggressive-conditions
+BSC_OPTS = +RTS -K40000k --RTS -u -v -verilog -aggressive-conditions
  
 # Copy over the bluespec source
 
