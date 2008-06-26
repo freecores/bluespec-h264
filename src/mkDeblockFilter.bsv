@@ -287,20 +287,26 @@ module mkDeblockFilter( IDeblockFilter );
    FIFO#(DeblockFilterOT) outfifoVertical <- mkSizedFIFO(5);
 
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) dataMemReqQ       <- mkFIFO;
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkFIFO();
-   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqVertical              <- mkFIFO();
+
+   // This fifo needs extra buffering to act as a kind of side buffer for the bottom right blocks.
+   // A better way to handle this would be a token scheme by which on chroma, the u would be loaded, 
+   // and then a token would be required for the v data to come through.  rowToColumn would need to 
+   // issue this token.  
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqRowToColumnConversion <- mkSizedFIFO(5);
+                                                                                         
+                            
+   FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqVertical              <- mkSizedFIFO(5);
    FIFO#(MemReq#(TAdd#(PicWidthSz,5),32)) memReqDataSendReq           <- mkFIFO();
 
    FIFO#(MemReq#(PicWidthSz,13))          parameterMemReqQ  <- mkFIFO;
-   FIFO#(MemResp#(32))                    dataMemRespQ      <- mkFIFO;
-   FIFO#(MemResp#(13))                    parameterMemRespQ <- mkFIFO;
+   FIFOF#(MemResp#(32))                    dataMemRespQ      <- mkFIFOF;
+   FIFOF#(MemResp#(13))                    parameterMemRespQ <- mkFIFOF;
 
    Reg#(Process) process       <- mkReg(Passing);
    Reg#(VerticalState) verticalState <- mkReg(NormalOperation);
    Reg#(Bit#(1)) chromaFlagHor <- mkReg(0);
    Reg#(Bit#(1)) chromaFlagVer <- mkReg(0);
    Reg#(Bit#(5)) dataReqCount  <- mkReg(0);
-   Reg#(Bit#(5)) dataRespCount <- mkReg(0);
    Reg#(Bit#(4)) blockNum      <- mkReg(0);
    Reg#(Bit#(2)) pixelNum      <- mkReg(0);
 
@@ -321,13 +327,10 @@ module mkDeblockFilter( IDeblockFilter );
 
    Reg#(Bit#(6)) curr_qpy   <- mkReg(0);
    Reg#(Bit#(6)) left_qpy   <- mkReg(0);
-   Reg#(Bit#(6)) top_qpy    <- mkReg(0);
    Reg#(Bit#(6)) curr_qpc   <- mkReg(0);
    Reg#(Bit#(6)) left_qpc   <- mkReg(0);
-   Reg#(Bit#(6)) top_qpc    <- mkReg(0);
    Reg#(Bit#(1)) curr_intra <- mkReg(0);
    Reg#(Bit#(1)) left_intra <- mkReg(0);
-   Reg#(Bit#(1)) top_intra  <- mkReg(0);
 
    Reg#(Bit#(2)) blockHorVerticalCleanup <- mkReg(0);
 
@@ -361,7 +364,6 @@ module mkDeblockFilter( IDeblockFilter );
    IWorkVectorVer workVectorCols <- mkWorkVectorVer();
    ILeftVector leftVector <- mkLeftVector();
    ITopVector  topVector  <- mkTopVector();
-   Reg#(Bit#(16)) topVectorValidBits <- mkReg(0);  
 
    IbSVector bSfileHor <- mkbSVector();
    IbSVector bSfileVer <- mkbSVector();
@@ -413,7 +415,7 @@ module mkDeblockFilter( IDeblockFilter );
      memReqRowToColumnConversion.deq();
      dataMemReqQ.enq(memReqRowToColumnConversion.first());
    endrule
-
+ 
    rule memReqMergeVertical;
      memReqVertical.deq();
      dataMemReqQ.enq(memReqVertical.first());
@@ -534,22 +536,17 @@ module mkDeblockFilter( IDeblockFilter );
       $display( "TRACE Deblocking Filter: initialize %0d", currMb);
       process <= Horizontal;
       dataReqCount <= 1;
-      dataRespCount <= 1;
       filterTopMbEdgeFlag <= !(currMb<zeroExtend(picWidth) || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb-firstMb<zeroExtend(picWidth)));
       filterLeftMbEdgeFlag <= !(currMbHor==0 || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb==firstMb));
       filterInternalEdgesFlag <= !(disable_deblocking_filter_idc==1);
       blockNum <= 0;
       pixelNum <= 0;
-      topVectorValidBits <= 0;
    endrule 
 
+   // no data comes through if we are on the top edge? kinda bogus
    rule dataSendReq ( dataReqCount>0 && currMbHor<zeroExtend(picWidth) );
       $display( "TRACE Deblocking Filter: dataSendReq %0d", dataReqCount);
       Bit#(PicWidthSz) temp = truncate(currMbHor);
-      if(currMb<zeroExtend(picWidth))
-	 dataReqCount <= 0;
-      else
-	 begin
 	    if(dataReqCount==1)
 	       parameterMemReqQ.enq(LoadReq (temp));
 	    Bit#(4) temp2 = truncate(dataReqCount-1);
@@ -559,14 +556,10 @@ module mkDeblockFilter( IDeblockFilter );
 	       dataReqCount <= 0;
 	    else
 	       dataReqCount <= dataReqCount+1;
-	 end
+	 
    endrule
 
 
-   rule dataReceiveNoResp ( dataRespCount>0 && currMb<zeroExtend(picWidth) && currMb-firstMb<zeroExtend(picWidth) );
-      $display( "TRACE Deblocking Filter: dataReceiveNoResp");
-      dataRespCount <= 0;
-   endrule
 
    function Action deque(FIFO#(Bit#(32)) fifo);
      return fifo.deq();
@@ -745,34 +738,7 @@ module mkDeblockFilter( IDeblockFilter );
  
    endrule
 
-   
-   rule dataReceiveResp ( dataRespCount>0 && !(currMb<zeroExtend(picWidth)) && currMbHor<zeroExtend(picWidth) );
-      $display( "TRACE Deblocking Filter: dataReceiveResp %0d", dataRespCount);
-      Bit#(4) temp = truncate(dataRespCount-1);
-      if(dataRespCount==1)
-	 begin
-	    Bit#(13) tempParameters=0;
-	    if(parameterMemRespQ.first() matches tagged LoadResp .xdata)
-	       tempParameters = xdata;
-	    top_qpy <= tempParameters[5:0];
-	    top_qpc <= tempParameters[11:6];
-	    top_intra <= tempParameters[12];
-	    parameterMemRespQ.deq();
-	 end
-      if(dataRespCount==16)
-	 dataRespCount <= 0;
-      else
-	 dataRespCount <= dataRespCount+1;
-      if(dataMemRespQ.first() matches tagged LoadResp .xdata)
-        begin
-          topVectorValidBits[temp] <= 1;
-	  topVector.upd(temp, xdata);
-        end
-      dataMemRespQ.deq();
-      //$display( "TRACE Deblocking Filter: dataReceiveResp topVector %h %h %h %h %h %h %h %h %h %h %h %h %h %h %h %h", topVector[0], topVector[1], topVector[2], topVector[3], topVector[4], topVector[5], topVector[6], topVector[7], topVector[8], topVector[9], topVector[10], topVector[11], topVector[12], topVector[13], topVector[14], topVector[15]);
-   endrule
-
-
+  
    rule horizontal ( process==Horizontal && currMbHor<zeroExtend(picWidth) );
       Bit#(2) blockHor = {blockNum[2],blockNum[0]};
       Bit#(2) blockVer = {blockNum[3],blockNum[1]};
@@ -975,19 +941,33 @@ module mkDeblockFilter( IDeblockFilter );
    Bool topEdge = (blockVer==0);
   
 
-  rule vertical_filter_halt((verticalState == NormalOperation) && !((!topEdge) || (topVectorValidBits[{blockHor,columnNumber}] == 1) || (currMb<zeroExtend(picWidth))));
+  rule vertical_filter_halt((verticalState == NormalOperation) && !((!topEdge) || (dataMemRespQ.notEmpty() && parameterMemRespQ.notEmpty()) || (currMb<zeroExtend(picWidth))));
         if(process == Vertical || process == Horizontal)
           begin
-            $display("TRACE Deblocking Filter: Vertical processing halted on block: %h (%0d, %0d), column %d chromaFlag %d due to data dependency",  blockNumCols, blockHor, blockVer, columnNumber, chromaFlagVer);
+            $display("TRACE Deblocking Filter: vertical processing halted on block: %h (%0d, %0d), column %d chromaFlag %d due to data dependency",  blockNumCols, blockHor, blockVer, columnNumber, chromaFlagVer);
           end
 
+  endrule
+
+
+  rule top_edge(topEdge);
+    $display("TRACE Deblocking Filter: top edge set");
+  endrule
+
+  rule infifos_full(dataMemRespQ.notEmpty() && parameterMemRespQ.notEmpty());
+    $display("TRACE Deblocking Filter: vertical processing has data in the input queues");
+  endrule 
+
+  rule vertFiltHead;
+    $display("TRACE Deblocking Filter: verticalFilterHead: %h", verticalFilterBlock.first());
   endrule
 
 
   // As with horizontal, the q data will be read from the data store, and the p data will be streamed in via the
   // reordering FIFO.  The new p data must be stored, but the q data will need to be spooled out, since it needs to 
   // make it to the left vector.
-  rule vertical((verticalState == NormalOperation) && ((!topEdge) || (topVectorValidBits[{blockHor,columnNumber}] == 1) || (currMb<zeroExtend(picWidth))));
+  rule vertical((verticalState == NormalOperation) && 
+                ((!topEdge) || (dataMemRespQ.notEmpty() && parameterMemRespQ.notEmpty()) || (currMb<zeroExtend(picWidth))));
     //$display( "TRACE Deblocking Filter: vertical %0d %0d", colNum, rowNum);
     //$display( "TRACE Deblocking Filter: vertical topVector %h %h %h %h %h %h %h %h %h %h %h %h %h %h %h %h", topVector[0], topVector[1], topVector[2], topVector[3], topVector[4], topVector[5], topVector[6], topVector[7], topVector[8], topVector[9], topVector[10], topVector[11], topVector[12], topVector[13], topVector[14], topVector[15]);
     //Process the block according to what got passed to us.
@@ -1003,24 +983,41 @@ module mkDeblockFilter( IDeblockFilter );
       columnNumber <= columnNumber + 1;
       verticalFilterBlock.deq();
       if(topEdge)
-	 begin
-            Bit#(6) curr_qp = (chromaFlagVer==0 ? curr_qpy : curr_qpc); // may need to check these 
-	    Bit#(6) top_qp = (chromaFlagVer==0 ? top_qpy : top_qpc);
-	    Bit#(7) qpavtemp = zeroExtend(curr_qp)+zeroExtend(top_qp)+1;
-	    Bit#(6) qpav = qpavtemp[6:1];
-	    Bit#(8) indexAtemp = zeroExtend(qpav)+signExtend(slice_alpha_c0_offset);
-	    Bit#(8) indexBtemp = zeroExtend(qpav)+signExtend(slice_beta_offset);
-	    Bit#(6) indexA = (indexAtemp[7]==1 ? 0 : (indexAtemp[6:0]>51 ? 51 : indexAtemp[5:0]));
-	    Bit#(6) indexB = (indexBtemp[7]==1 ? 0 : (indexBtemp[6:0]>51 ? 51 : indexBtemp[5:0]));
-	    Bit#(8) alphaMbTop = alpha_table[indexA];
-	    Bit#(5) betaMbTop = beta_table[indexB];
-	    Vector#(3,Bit#(5)) tc0MbTop = arrayToVector(tc0_table[indexA]);
-	    tempV <- topVector.sub({blockHor,columnNumber});
-            $display( "TRACE Deblocking Filter: vertical P (top) addr %h, orig data %h ",{blockVer,columnNumber}, tempV);
-	    alpha = alphaMbTop;
-	    beta = betaMbTop;
-	    tc0 = tc0MbTop;
-	 end
+        begin
+          if((dataMemRespQ.first()) matches tagged LoadResp .xdata &&&
+             (parameterMemRespQ.first()) matches tagged LoadResp .xparam)
+	       begin 
+                 if((blockHor == 3) && (columnNumber + 1 == 0))
+                   begin
+                     $display("Trace Deblocking filter parameter deq");
+                     parameterMemRespQ.deq();
+                   end
+	         Bit#(6)  top_qpy = xparam[5:0];
+                 Bit#(6)  top_qpc = xparam[11:6];
+	         Bit#(1)  top_intra = xparam[12];
+                 Bit#(6) curr_qp = (chromaFlagVer==0 ? curr_qpy : curr_qpc); // may need to check these 
+	         Bit#(6) top_qp = (chromaFlagVer==0 ? top_qpy : top_qpc);
+	         Bit#(7) qpavtemp = zeroExtend(curr_qp)+zeroExtend(top_qp)+1;
+	         Bit#(6) qpav = qpavtemp[6:1];
+	         Bit#(8) indexAtemp = zeroExtend(qpav)+signExtend(slice_alpha_c0_offset);
+	         Bit#(8) indexBtemp = zeroExtend(qpav)+signExtend(slice_beta_offset);
+	         Bit#(6) indexA = (indexAtemp[7]==1 ? 0 : (indexAtemp[6:0]>51 ? 51 : indexAtemp[5:0]));
+	         Bit#(6) indexB = (indexBtemp[7]==1 ? 0 : (indexBtemp[6:0]>51 ? 51 : indexBtemp[5:0]));
+	         Bit#(8) alphaMbTop = alpha_table[indexA];
+	         Bit#(5) betaMbTop = beta_table[indexB];
+	         Vector#(3,Bit#(5)) tc0MbTop = arrayToVector(tc0_table[indexA]);
+	         tempV = xdata;
+                 dataMemRespQ.deq();
+                 $display( "TRACE Deblocking Filter: vertical P (top) addr %h, orig data %h ",{blockVer,columnNumber}, tempV);
+	         alpha = alphaMbTop;
+	         beta = betaMbTop;
+	         tc0 = tc0MbTop;
+	       end
+            else
+              begin
+                $display("TRACE Deblocking Filter: Did not have data available to process top");
+              end
+         end
       else
 	 begin  
             // We read this value from the original vector           
@@ -1070,6 +1067,7 @@ module mkDeblockFilter( IDeblockFilter );
                 if(columnNumber == 3)
                   begin
                     blockHorVerticalCleanup <= blockHor;
+                    $display("TRACE Deblocking Filter: heading to vertical cleanup");
                     verticalState <= VerticalCleanup;
                   end                
               end  
@@ -1079,6 +1077,7 @@ module mkDeblockFilter( IDeblockFilter );
                                                                         // roll through the block clean up.
                   begin
                     blockHorVerticalCleanup <= blockHor;
+                    $display("TRACE Deblocking Filter: heading to vertical cleanup");
                     verticalState <= VerticalCleanup;
                   end                 
                 memReqVertical.enq(StoreReq {addr:{currMbHorT,chromaFlagVer,blockHor,columnNumber},data:resultV[63:32]});
@@ -1139,13 +1138,13 @@ end
   
    interface Client mem_client_data;
       interface Get request  = fifoToGet(dataMemReqQ);
-      interface Put response = fifoToPut(dataMemRespQ);
+      interface Put response = fifoToPut(fifofToFifo(dataMemRespQ));
    endinterface
 
    interface Client mem_client_parameter;
       interface Get request  = fifoToGet(parameterMemReqQ);
 
-      interface Put response = fifoToPut(parameterMemRespQ);
+      interface Put response = fifoToPut(fifofToFifo(parameterMemRespQ));
    endinterface
 
    interface Put ioin  = fifoToPut(fifofToFifo(infifo));
