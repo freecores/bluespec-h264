@@ -404,7 +404,7 @@ module mkDeblockFilter( IDeblockFilter );
       if(!infifo.notFull)
         begin
           fifo_full_count <= fifo_full_count + 1;
-          $display("DEBLOCK FIFO FULL: %d of %d",fifo_full_count, total_cycles); 
+          $display("DEBLOCK FIFO(%d) FULL: %d of %d",deblockFilter_infifo_size, fifo_full_count, total_cycles); 
         end       
    endrule
 
@@ -541,7 +541,6 @@ module mkDeblockFilter( IDeblockFilter );
       pixelNum <= 0;
       topVectorValidBits <= 0;
    endrule 
-
 
    rule dataSendReq ( dataReqCount>0 && currMbHor<zeroExtend(picWidth) );
       $display( "TRACE Deblocking Filter: dataSendReq %0d", dataReqCount);
