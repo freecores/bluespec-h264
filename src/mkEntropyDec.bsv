@@ -1,6 +1,7 @@
 //**********************************************************************
-// Entropy Decoder implementation
+// Entropy Decoder (parser) implementation
 //----------------------------------------------------------------------
+// Section 7 in spec
 //
 //
 

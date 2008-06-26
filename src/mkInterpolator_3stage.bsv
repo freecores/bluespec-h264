@@ -1,7 +1,10 @@
 //**********************************************************************
 // interpolator implementation
 //----------------------------------------------------------------------
+// Section 8.4.2.2 in spec
 //
+// Non-pipelined interpolation processing
+// Many cases require only one pass anyway, so not 2x slower
 //
 
 package mkInterpolator;

@@ -1,6 +1,7 @@
 //**********************************************************************
-// nC Calculator implementation
+// nC Calculator implementation (part of CAVLC process)
 //----------------------------------------------------------------------
+// Section 9.2.1 in spec
 //
 //
 
