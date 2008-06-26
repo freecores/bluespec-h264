@@ -263,7 +263,7 @@ module mkth(CLK,
   wire RST_N;
   assign RST_N = ~RST;
 
-mkTH h264_mod(.CLK(CLK),
+mkTH_fpga h264_mod(.CLK(CLK),
 	    .RST_N(RST_N),
 	    
 	    .vga_controller_red(vga_controller_red),
