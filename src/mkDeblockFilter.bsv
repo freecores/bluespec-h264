@@ -1,7 +1,7 @@
 //**********************************************************************
 // Deblocking Filter
 //----------------------------------------------------------------------
-//
+//     
 //
 
 package mkDeblockFilter;
@@ -27,6 +27,7 @@ import RWire::*;
 typedef enum                
 {
   Passing,          //not working on anything in particular
+  Initialize,
   Horizontal,
   Cleanup,
   HorizontalCleanup,
@@ -340,7 +341,6 @@ module mkDeblockFilter( IDeblockFilter );
 			     80, 90,101,113,127,144,162,182,203,226,
 			    255,255};
    Bit#(5) beta_table[52] = {0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-
 			     0,  0,  0,  0,  0,  0,  2,  2,  2,  3,
 			     3,  3,  3,  4,  4,  4,  6,  6,  7,  7,
 			     8,  8,  9,  9, 10, 10, 11, 11, 12, 12,
@@ -367,26 +367,14 @@ module mkDeblockFilter( IDeblockFilter );
 
    Reg#(Bit#(6)) cleanup_state <- mkReg(0);
 
-   Vector#(4, FIFO#(Bit#(32))) rowToColumnStore = newVector();//replicateM(mkSizedFIFO(3));
-   rowToColumnStore[0] <- mkSizedFIFO(3);
-   rowToColumnStore[1] <- mkFIFO;
-   rowToColumnStore[2] <- mkFIFO;   
-   rowToColumnStore[3] <- mkFIFO;
-
-
+   Vector#(4, FIFO#(Bit#(32))) rowToColumnStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) rowToColumnState <- mkReg(0);
    FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkFIFO(); // The third bit 1 is to rotate the damned 
                                                                               // last left vector block
    FIFO#(Tuple2#(Bit#(4), Bit#(32))) verticalFilterBlock <- mkFIFO();
 
    Reg#(Bit#(2)) columnState <- mkReg(0);
-   Vector#(4, FIFO#(Bit#(32))) columnToRowStore = newVector();
-   columnToRowStore[0] <- mkSizedFIFO(3);
-   columnToRowStore[1] <- mkFIFO;
-   columnToRowStore[2] <- mkFIFO;
-   columnToRowStore[3] <- mkFIFO;
-
-
+   Vector#(4, FIFO#(Bit#(32))) columnToRowStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) columnToRowState <- mkReg(0);
    FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
 
@@ -503,18 +491,7 @@ module mkDeblockFilter( IDeblockFilter );
 	    end
 	 tagged PBbS .xdata :
 	    begin
-              if(currMbHor<zeroExtend(picWidth))
-                begin
-	          process <= Horizontal;
-                  dataReqCount <= 1;
-                  dataRespCount <= 1;
-                  filterTopMbEdgeFlag <= !(currMb<zeroExtend(picWidth) || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb-firstMb<zeroExtend(picWidth)));
-                  filterLeftMbEdgeFlag <= !(currMbHor==0 || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb==firstMb));
-                  filterInternalEdgesFlag <= !(disable_deblocking_filter_idc==1);
-                  blockNum <= 0;
-                  pixelNum <= 0;
-                  topVectorValidBits <= 0;
-                end
+	       process <= Initialize;
 	    end
 	 tagged PBoutput .xdata :
 	    begin
@@ -552,6 +529,19 @@ module mkDeblockFilter( IDeblockFilter );
    endrule
 
    
+   rule initialize ( process==Initialize && currMbHor<zeroExtend(picWidth) );
+      $display( "TRACE Deblocking Filter: initialize %0d", currMb);
+      process <= Horizontal;
+      dataReqCount <= 1;
+      dataRespCount <= 1;
+      filterTopMbEdgeFlag <= !(currMb<zeroExtend(picWidth) || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb-firstMb<zeroExtend(picWidth)));
+      filterLeftMbEdgeFlag <= !(currMbHor==0 || disable_deblocking_filter_idc==1 || (disable_deblocking_filter_idc==2 && currMb==firstMb));
+      filterInternalEdgesFlag <= !(disable_deblocking_filter_idc==1);
+      blockNum <= 0;
+      pixelNum <= 0;
+      topVectorValidBits <= 0;
+   endrule 
+
    rule dataSendReq ( dataReqCount>0 && currMbHor<zeroExtend(picWidth) );
       $display( "TRACE Deblocking Filter: dataSendReq %0d", dataReqCount);
       Bit#(PicWidthSz) temp = truncate(currMbHor);
@@ -1121,13 +1111,8 @@ end
     if(chromaFlag==0)
       begin		    
         chromaFlag <= 1;
+        process <= Initialize;
         $display( "TRACE Deblocking Filter: horizontal bsFIFO luma completed");
-        process <= Horizontal;
-        dataReqCount <= 1;
-        dataRespCount <= 1;
-        blockNum <= 0;
-        pixelNum <= 0;
-        topVectorValidBits <= 0;
       end
     else
       begin
