@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.6 2008-06-26 18:01:57 jamey.hicks Exp $
+# $Id: Makefile,v 1.7 2008-06-26 18:02:18 jamey.hicks Exp $
 #
 
 default : all
@@ -57,6 +57,9 @@ bsvsrcs = \
         $(srcdir)/EntropyTee.bsv \
         $(srcdir)/DeblockTee.bsv \
         $(srcdir)/MemoryTee.bsv \
+        $(srcdir)/IDecoupledClient.bsv \
+	$(srcdir)/IMemEDDecoupled.bsv \
+	$(srcdir)/mkMemEDDecoupled.bsv \
 
 #--------------------------------------------------------------------
 # Build rules
