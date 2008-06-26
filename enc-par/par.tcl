@@ -1,7 +1,7 @@
 #=========================================================================
 # Command file for place/route using cadence encounter
 #-------------------------------------------------------------------------
-# $Id: par.tcl,v 1.1 2008-06-26 17:58:43 jamey.hicks Exp $
+# $Id: par.tcl,v 1.2 2008-06-26 18:00:22 jamey.hicks Exp $
 #
 # This file specifies commands which encounter will execute when 
 # performing place and route for your design.
@@ -123,6 +123,8 @@ setNanoRouteMode -routeSelectedNetOnly false
 setNanoRouteMode -envNumberProcessor 1
 setNanoRouteMode -drouteOptimizeUseMultiCutVia true
 globalDetailRoute
+
+delayCal -sdf postroute.sdf
 
 #------------------------------------------------------------
 # postroute reports
