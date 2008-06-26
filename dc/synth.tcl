@@ -1,7 +1,7 @@
 #=========================================================================
 # TCL Script File for Synthesis using Synopsys Design Compiler
 #-------------------------------------------------------------------------
-# $Id: synth.tcl,v 1.1 2008-06-26 17:58:18 jamey.hicks Exp $
+# $Id: synth.tcl,v 1.2 2008-06-26 17:58:55 jamey.hicks Exp $
 # 
 
 # The makefile will generate various variables which we now read in
@@ -62,6 +62,8 @@ write -format ddc -hierarchy -output synthesized.ddc
 report_timing -capacitance -transition_time -nosplit -nworst 10 -max_paths 500 > synth_timing.rpt
 report_reference -nosplit > synth_area.rpt
 report_resources -nosplit > synth_resources.rpt
+report_power     -nosplit -hier > synth_power.rpt
+
 set cells [get_cells -hierarchical -filter "is_hierarchical == true"]
 set zcells [sort_collection $cells { full_name }]
 foreach_in_collection eachcell $zcells {
