@@ -181,7 +181,7 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(3)) interReqCount <- mkReg(0);
    Reg#(Bit#(3)) interRespCount <- mkReg(0);
 
-   Reg#(Bit#(1)) interStepCount <- mkReg(0);
+   Reg#(Bit#(2)) interStepCount <- mkReg(0);
    Reg#(Bit#(2)) interMbPartNum <- mkReg(0);
    Reg#(Bit#(2)) interSubMbPartNum <- mkReg(0);
    Reg#(Bit#(2)) interPassingCount <- mkReg(0);
@@ -191,6 +191,22 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(15)) interMvDiffTemp <- mkReg(0);
    FIFO#(Tuple2#(Bit#(15),Bit#(13))) interMvDiff <- mkFIFO;
    Reg#(Bit#(5)) interNewestMv <- mkReg(0);
+
+   // Registers for pipelining the interStage rule
+
+   Reg#(Bit#(3)) partWidthR <- mkRegU();
+   Reg#(Bit#(3)) partHeightR <- mkRegU();
+   Reg#(Bit#(3)) numPartR <- mkRegU();
+   Reg#(Bit#(3)) numSubPartR <- mkRegU();
+   Reg#(Bit#(2)) subMbTypeR <- mkRegU();
+   Reg#(Bool) calcmvR <- mkRegU();
+   Reg#(Bool) leftmvR <- mkRegU();
+   Reg#(Bit#(4)) refIndexR <- mkRegU();
+   Reg#(Vector#(3,InterBlockMv)) blockABCR <- mkRegU();
+   Reg#(Bit#(14)) mvhorfinalR <- mkRegU();
+   Reg#(Bit#(12)) mvverfinalR <- mkRegU();
+   Reg#(Bit#(5)) interNewestMvNextR <- mkRegU();
+
    
    Reg#(Bit#(2)) interIPStepCount <- mkReg(0);
    Reg#(Bit#(2)) interIPMbPartNum <- mkReg(0);
@@ -235,7 +251,7 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(15)) intraSumB <-  mkReg(0);
    Reg#(Bit#(15)) intraSumC <-  mkReg(0);
    
-   
+   Reg#(Vector#(4,Bit#(8))) intraPredVector <- mkRegU();   
 
    //-----------------------------------------------------------
    // Rules
@@ -251,10 +267,16 @@ module mkPrediction( IPrediction );
 //   endrule
    //////////////////////////////////////////////////////////////////////////////
 
-
    rule checkFIFO ( True );
-      $display( "Trace Prediction: checkFIFO %h", infifo_ITB.first() );
+      $display( "Trace Prediction: checkFIFO %h", infifo.first() );
    endrule
+   rule checkFIFO_ITB ( True );
+      $display( "Trace Prediction: checkFIFO_ITB %h", infifo_ITB.first() );
+   endrule
+   rule checkFIFO_predicted ( True );
+      $display( "Trace Prediction: checkFIFO_predicted %h", predictedfifo.first() );
+   endrule
+
    
    rule passing ( passFlag && !outstatefifo.notEmpty() && currMbHor<zeroExtend(picWidth) );
       $display( "Trace Prediction: passing infifo packed %h", pack(infifo.first()));
@@ -936,275 +958,327 @@ module mkPrediction( IPrediction );
       Bit#(PicAreaSz) currMbTemp = currMb+zeroExtend(interCurrMbDiff)-1;
       Bit#(2) blockHor = {interMbPartNum[0],interSubMbPartNum[0]};
       Bit#(2) blockVer = {interMbPartNum[1],interSubMbPartNum[1]};
-      Bit#(3) partWidth = 0;
-      Bit#(3) partHeight = 0;
-      Bit#(3) numPart = 1;
-      Bit#(3) numSubPart = 1;
-      Bit#(2) subMbType = 0;
-      Bool noBlockC = False;
-      Bool calcmv = False;
-      Bool leftmv = False;
-      if(interstate==InterPskip || interstate==InterP16x16)
-	 begin
-	    partWidth = 4;
-	    partHeight = 4;
-	    numPart = 1;
-	    calcmv = (interMbPartNum==0 && interSubMbPartNum==0);
-	    leftmv = (blockHor>0);
-	 end
-      else if(interstate==InterP16x8)
-	 begin
-	    partWidth = 4;
-	    partHeight = 2;
-	    numPart = 2;
-	    if(interMbPartNum==2)
-	       noBlockC = True;
-	    calcmv = (interMbPartNum[0]==0 && interSubMbPartNum==0);
-	    leftmv = (blockHor>0);
-	 end
-      else if(interstate==InterP8x16)
-	 begin
-	    partWidth = 2;
-	    partHeight = 4;
-	    numPart = 2;
-	    calcmv = (interMbPartNum[1]==0 && interSubMbPartNum==0);
-	    leftmv = !(blockVer>0);
-	 end
-      else if(interstate==InterP8x8 || interstate==InterP8x8ref0)
-	 begin
-	    numPart = 4;
-	    subMbType = interSubMbTypeVector[interMbPartNum];
-	    numSubPart = numSubMbPart(subMbType);
-	    case(subMbType)
-	       0:
+
+      if(interStepCount == 1)
+         begin
+           Bit#(3) partWidth = 0;
+           Bit#(3) partHeight = 0;
+           Bit#(3) numPart = 1;
+           Bit#(3) numSubPart = 1;
+           Bit#(2) subMbType = 0;
+           Bool noBlockC = False;
+           Bool calcmv = False;
+           Bool leftmv = False;
+           if(interstate==InterPskip || interstate==InterP16x16)
+	      begin
+	         partWidth = 4;
+	         partHeight = 4;
+	         numPart = 1;
+	         calcmv = (interMbPartNum==0 && interSubMbPartNum==0);
+	         leftmv = (blockHor>0);
+	      end
+           else if(interstate==InterP16x8)
+	      begin
+	         partWidth = 4;
+                 partHeight = 2;
+	         numPart = 2;
+	         if(interMbPartNum==2)
+	            noBlockC = True;
+	         calcmv = (interMbPartNum[0]==0 && interSubMbPartNum==0);
+	         leftmv = (blockHor>0);
+	      end
+           else if(interstate==InterP8x16)
+	      begin
+	         partWidth = 2;
+	         partHeight = 4;
+	         numPart = 2;
+	         calcmv = (interMbPartNum[1]==0 && interSubMbPartNum==0);
+	         leftmv = !(blockVer>0);
+	      end
+           else if(interstate==InterP8x8 || interstate==InterP8x8ref0)
+	      begin
+	         numPart = 4;
+	         subMbType = interSubMbTypeVector[interMbPartNum];
+	         numSubPart = numSubMbPart(subMbType);
+	         case(subMbType)
+	            0:
+	            begin
+	               partWidth = 2;
+		       partHeight = 2;
+		       if(interMbPartNum==3)
+		          noBlockC = True;
+                       calcmv = (interSubMbPartNum==0);
+		       leftmv = (blockHor[0]>0);
+	            end
+	            1:
+	            begin
+		       partWidth = 2;
+		       partHeight = 1;
+		       if(interSubMbPartNum==2)
+		          noBlockC = True;
+		       calcmv = (interSubMbPartNum[0]==0);
+		       leftmv = True;
+	            end
+	            2: 
+	            begin
+		       partWidth = 1;
+		       partHeight = 2;
+		       calcmv = (interSubMbPartNum[1]==0);
+		       leftmv = False;
+	            end
+	            3:
+	            begin
+		      partWidth = 1;
+		      partHeight = 1;
+		      if(interSubMbPartNum==3)
+		         noBlockC = True;
+		      calcmv = True;
+	            end
+	         endcase
+	     end
+          else
+	    $display( "ERROR Prediction: interProcessStep unexpected interstate");
+
+          Bit#(4) refIndex = ((interstate==InterPskip||interstate==InterP8x8ref0) ? 0 : interRefIdxVector[interMbPartNum]);
+          Vector#(3,InterBlockMv) blockABC = replicate(NotInter 0);
+          if( currMbTemp-firstMb==0 && blockHor==0 )
+	     blockABC[0] = (NotInter 0);
+          else
+	     blockABC[0] = interLeftVal[blockVer];
+          if( currMbTemp-firstMb<zeroExtend(picWidth) && blockVer==0 )
+	     blockABC[1] = (NotInter 0);
+          else
+	     blockABC[1] = interTopVal[blockHor];
+          blockABC[2] = interTopVal[{1'b0,blockHor}+partWidth];
+          if(noBlockC || blockABC[2]==(NotInter 0))
+	     blockABC[2] = interTopLeftVal[blockVer];
+	  partWidthR <= partWidth;
+	  partHeightR <= partHeight;
+	  numPartR <= numPart;
+	  numSubPartR <= numSubPart;
+	  subMbTypeR <= subMbType;
+	  calcmvR <= calcmv;
+	  leftmvR <= leftmv;
+	  refIndexR <= refIndex;
+	  blockABCR <= blockABC;
+	  interStepCount <= 2;
+      end
+   else if(interStepCount==2)
+      begin
+         Bit#(3) partWidth = partWidthR;
+         Bit#(3) partHeight = partHeightR;
+         Bit#(3) numPart = numPartR;
+         Bit#(3) numSubPart = numSubPartR;
+         Bit#(2) subMbType = subMbTypeR;
+         Bool calcmv = calcmvR;
+         Bool leftmv = leftmvR;
+         Bit#(4) refIndex = refIndexR;
+         Vector#(3,InterBlockMv) blockABC = blockABCR;
+         Bit#(14) mvhorfinal = 0;
+         Bit#(12) mvverfinal = 0;
+         Bit#(5) interNewestMvNext = 0;
+         if(calcmv)//motion vector caculation
+	    begin
+	       Vector#(3,Int#(14)) mvhorABC = replicate(0);
+               Vector#(3,Int#(12)) mvverABC = replicate(0);
+               Bit#(2) validCount = 0;
+               Bit#(14) mvhorPred = 0;
+               Bit#(12) mvverPred = 0;
+               for(Integer ii=0; ii<3; ii=ii+1)
+                  begin
+		     if(blockABC[ii] matches tagged BlockMv .xdata)
+		        begin
+			   mvhorABC[ii] = unpack(xdata.mvhor);
+			   mvverABC[ii] = unpack(xdata.mvver);
+			   if(xdata.refIdx == refIndex)
+			      begin
+			         validCount = validCount+1;
+			         mvhorPred = xdata.mvhor;
+			         mvverPred = xdata.mvver;
+			      end
+		        end
+		     else
+		       begin
+		          mvhorABC[ii] = 0;
+			  mvverABC[ii] = 0;
+                       end     
+	          end
+	       if(validCount != 1)//median
+	          begin
+		     if(mvhorABC[0]>mvhorABC[1] && mvhorABC[0]>mvhorABC[2])
+		        mvhorPred = pack((mvhorABC[1]>mvhorABC[2]) ? mvhorABC[1] : mvhorABC[2]);
+		     else if(mvhorABC[0]<mvhorABC[1] && mvhorABC[0]<mvhorABC[2])
+		        mvhorPred = pack((mvhorABC[1]<mvhorABC[2]) ? mvhorABC[1] : mvhorABC[2]);
+		     else
+		        mvhorPred = pack(mvhorABC[0]);
+		     if(mvverABC[0]>mvverABC[1] && mvverABC[0]>mvverABC[2])
+		        mvverPred = pack((mvverABC[1]>mvverABC[2]) ? mvverABC[1] : mvverABC[2]);
+		     else if(mvverABC[0]<mvverABC[1] && mvverABC[0]<mvverABC[2])
+		        mvverPred = pack((mvverABC[1]<mvverABC[2]) ? mvverABC[1] : mvverABC[2]);
+		     else
+		        mvverPred = pack(mvverABC[0]);
+	          end
+	       if(interstate==InterPskip)
+	          begin
+		     for(Integer ii=0; ii<2; ii=ii+1)
+		        begin
+			   if(blockABC[ii] matches tagged BlockMv .xdata)
+			      begin
+			         if(xdata.refIdx==0 && xdata.mvhor==0 && xdata.mvver==0)
+				    begin
+				       mvhorPred = 0;
+				       mvverPred = 0;
+				    end
+			      end
+			   else if(blockABC[ii] matches tagged NotInter 0)
+			      begin
+			         mvhorPred = 0;
+			         mvverPred = 0;
+			      end
+		        end
+	          end
+	       else if(interstate==InterP16x8 || interstate==InterP8x16)
+	          begin
+		     InterBlockMv blockCheck;
+		     if(interstate==InterP16x8)
+		        begin
+			   if(interMbPartNum==0)
+			      blockCheck = blockABC[1];
+			   else
+			      blockCheck = blockABC[0];
+		        end
+	             else
+		        begin
+			   if(interMbPartNum==0)
+			      blockCheck = blockABC[0];
+			   else
+			      blockCheck = blockABC[2];
+		        end
+		     if(blockCheck matches tagged BlockMv .xdata &&& xdata.refIdx==refIndex)
+		        begin
+			   mvhorPred = xdata.mvhor;
+			   mvverPred = xdata.mvver;
+		        end
+	          end
+	       mvhorfinal = mvhorPred;
+	       mvverfinal = mvverPred;
+	       if(interstate!=InterPskip)
+	          begin
+		     mvhorfinal = truncate(tpl_1(interMvDiff.first()) + signExtend(mvhorPred));
+		     mvverfinal = truncate(tpl_2(interMvDiff.first()) + signExtend(mvverPred));
+		     interMvDiff.deq();
+	          end
+	       interMvFile.upd({interMbPartNum,interSubMbPartNum},tuple2(mvhorfinal,mvverfinal));
+	       interNewestMvNext = zeroExtend({interMbPartNum,interSubMbPartNum})+1;
+	       $display( "Trace Prediction: interProcessStep %h %h %h %h %h %h %h %h %h", interstate, interStepCount, interMbPartNum, interSubMbPartNum, pack(blockABC[0]), pack(blockABC[1]), pack(blockABC[2]), mvhorPred, mvverPred);
+	    end
+         else
+	    begin
+	       if(leftmv)
+	          begin
+		     if(blockABC[0] matches tagged BlockMv .xdata)
+		        begin
+			   mvhorfinal = unpack(xdata.mvhor);
+			   mvverfinal = unpack(xdata.mvver);
+		        end
+		     else
+		        $display( "ERROR Prediction: interProcessStep unexpected blockABC[0]");
+	          end
+	       else
+	          begin
+		     if(blockABC[1] matches tagged BlockMv .xdata)
+		        begin
+			   mvhorfinal = unpack(xdata.mvhor);
+			   mvverfinal = unpack(xdata.mvver);
+		        end
+		     else
+		        $display( "ERROR Prediction: interProcessStep unexpected blockABC[1]");
+	          end
+	    end
+
+	    mvhorfinalR <= mvhorfinal;
+	    mvverfinalR <= mvverfinal;
+	    interNewestMvNextR <= interNewestMvNext;
+	    interStepCount <= 3;
+
+         end
+      else // stepCount == 3
+         begin
+            Bit#(2) tempBShor = 0;//bS calculation
+            Bit#(2) tempBSver = 0;
+	    Bool allDone = False;
+	    Bit#(4) refIndex = refIndexR;
+	    Bit#(14) mvhorfinal = mvhorfinalR;
+	    Bit#(12) mvverfinal = mvverfinalR;
+	    Bit#(5) interNewestMvNext = interNewestMvNextR;
+
+            if(interLeftVal[blockVer] matches tagged BlockMv .xdata)
 	       begin
-		  partWidth = 2;
-		  partHeight = 2;
-		  if(interMbPartNum==3)
-		     noBlockC = True;
-		  calcmv = (interSubMbPartNum==0);
-		  leftmv = (blockHor[0]>0);
-	       end
-	       1:
-	       begin
-		  partWidth = 2;
-		  partHeight = 1;
-		  if(interSubMbPartNum==2)
-		     noBlockC = True;
-		  calcmv = (interSubMbPartNum[0]==0);
-		  leftmv = True;
-	       end
-	       2: 
-	       begin
-		  partWidth = 1;
-		  partHeight = 2;
-		  calcmv = (interSubMbPartNum[1]==0);
-		  leftmv = False;
-	       end
-	       3:
-	       begin
-		  partWidth = 1;
-		  partHeight = 1;
-		  if(interSubMbPartNum==3)
-		     noBlockC = True;
-		  calcmv = True;
-	       end
-	    endcase
-	 end
-      else
-	 $display( "ERROR Prediction: interProcessStep unexpected interstate");
-      Bit#(4) refIndex = ((interstate==InterPskip||interstate==InterP8x8ref0) ? 0 : interRefIdxVector[interMbPartNum]);
-      Vector#(3,InterBlockMv) blockABC = replicate(NotInter 0);
-      if( currMbTemp-firstMb==0 && blockHor==0 )
-	 blockABC[0] = (NotInter 0);
-      else
-	 blockABC[0] = interLeftVal[blockVer];
-      if( currMbTemp-firstMb<zeroExtend(picWidth) && blockVer==0 )
-	 blockABC[1] = (NotInter 0);
-      else
-	 blockABC[1] = interTopVal[blockHor];
-      blockABC[2] = interTopVal[{1'b0,blockHor}+partWidth];
-      if(noBlockC || blockABC[2]==(NotInter 0))
-	 blockABC[2] = interTopLeftVal[blockVer];
-      Bit#(14) mvhorfinal = 0;
-      Bit#(12) mvverfinal = 0;
-      Bit#(5) interNewestMvNext = 0;
-      if(calcmv)//motion vector caculation
-	 begin
-	    Vector#(3,Int#(14)) mvhorABC = replicate(0);
-	    Vector#(3,Int#(12)) mvverABC = replicate(0);
-	    Bit#(2) validCount = 0;
-	    Bit#(14) mvhorPred = 0;
-	    Bit#(12) mvverPred = 0;
-	    for(Integer ii=0; ii<3; ii=ii+1)
-	       begin
-		  if(blockABC[ii] matches tagged BlockMv .xdata)
-		     begin
-			mvhorABC[ii] = unpack(xdata.mvhor);
-			mvverABC[ii] = unpack(xdata.mvver);
-			if(xdata.refIdx == refIndex)
-			   begin
-			      validCount = validCount+1;
-			      mvhorPred = xdata.mvhor;
-			      mvverPred = xdata.mvver;
-			   end
-		     end
-		  else
-		     begin
-			mvhorABC[ii] = 0;
-			mvverABC[ii] = 0;
-		     end     
-	       end
-	    if(validCount != 1)//median
-	       begin
-		  if(mvhorABC[0]>mvhorABC[1] && mvhorABC[0]>mvhorABC[2])
-		     mvhorPred = pack((mvhorABC[1]>mvhorABC[2]) ? mvhorABC[1] : mvhorABC[2]);
-		  else if(mvhorABC[0]<mvhorABC[1] && mvhorABC[0]<mvhorABC[2])
-		     mvhorPred = pack((mvhorABC[1]<mvhorABC[2]) ? mvhorABC[1] : mvhorABC[2]);
-		  else
-		     mvhorPred = pack(mvhorABC[0]);
-		  if(mvverABC[0]>mvverABC[1] && mvverABC[0]>mvverABC[2])
-		     mvverPred = pack((mvverABC[1]>mvverABC[2]) ? mvverABC[1] : mvverABC[2]);
-		  else if(mvverABC[0]<mvverABC[1] && mvverABC[0]<mvverABC[2])
-		     mvverPred = pack((mvverABC[1]<mvverABC[2]) ? mvverABC[1] : mvverABC[2]);
-		  else
-		     mvverPred = pack(mvverABC[0]);
-	       end
-	    if(interstate==InterPskip)
-	       begin
-		  for(Integer ii=0; ii<2; ii=ii+1)
-		     begin
-			if(blockABC[ii] matches tagged BlockMv .xdata)
-			   begin
-			      if(xdata.refIdx==0 && xdata.mvhor==0 && xdata.mvver==0)
-				 begin
-				    mvhorPred = 0;
-				    mvverPred = 0;
-				 end
-			   end
-			else if(blockABC[ii] matches tagged NotInter 0)
-			   begin
-			      mvhorPred = 0;
-			      mvverPred = 0;
-			   end
-		     end
-	       end
-	    else if(interstate==InterP16x8 || interstate==InterP8x16)
-	       begin
-		  InterBlockMv blockCheck;
-		  if(interstate==InterP16x8)
-		     begin
-			if(interMbPartNum==0)
-			   blockCheck = blockABC[1];
-			else
-			   blockCheck = blockABC[0];
-		     end
+	          if(xdata.nonZeroTransCoeff == 1)
+	             tempBShor = 2;
 	          else
-		     begin
-			if(interMbPartNum==0)
-			   blockCheck = blockABC[0];
-			else
-			   blockCheck = blockABC[2];
-		     end
-		  if(blockCheck matches tagged BlockMv .xdata &&& xdata.refIdx==refIndex)
-		     begin
-			mvhorPred = xdata.mvhor;
-			mvverPred = xdata.mvver;
-		     end
+	             begin
+		       if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
+		           tempBShor = 1;
+		       else
+		           tempBShor = 0;
+	             end
 	       end
-	    mvhorfinal = mvhorPred;
-	    mvverfinal = mvverPred;
-	    if(interstate!=InterPskip)
+            else
+	    tempBShor = 3;
+            if(interTopVal[blockHor] matches tagged BlockMv .xdata)
 	       begin
-		  mvhorfinal = truncate(tpl_1(interMvDiff.first()) + signExtend(mvhorPred));
-		  mvverfinal = truncate(tpl_2(interMvDiff.first()) + signExtend(mvverPred));
-		  interMvDiff.deq();
+	          if(xdata.nonZeroTransCoeff == 1)
+	             tempBSver = 2;
+	          else
+	             begin
+		        if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
+		           tempBSver = 1;
+		        else
+		           tempBSver = 0;
+	             end
 	       end
-	    interMvFile.upd({interMbPartNum,interSubMbPartNum},tuple2(mvhorfinal,mvverfinal));
-	    interNewestMvNext = zeroExtend({interMbPartNum,interSubMbPartNum})+1;
-	    $display( "Trace Prediction: interProcessStep %h %h %h %h %h %h %h %h %h", interstate, interStepCount, interMbPartNum, interSubMbPartNum, pack(blockABC[0]), pack(blockABC[1]), pack(blockABC[2]), mvhorPred, mvverPred);
-	 end
-      else
-	 begin
-	    if(leftmv)
+            else
+	       tempBSver = 3;
+            interBSfifo.enq(tuple2(tempBShor,tempBSver));
+            Vector#(5,InterBlockMv) interTopValNext = interTopVal;//update inter*Val
+            Vector#(4,InterBlockMv) interLeftValNext = interLeftVal;
+            Vector#(4,InterBlockMv) interTopLeftValNext = interTopLeftVal;
+            interLeftValNext[blockVer] = (BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
+            interTopValNext[blockHor] = (BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
+            interTopLeftValNext[blockVer] = interTopVal[blockHor];
+            interTopVal <= interTopValNext;
+            interLeftVal <= interLeftValNext;
+            interTopLeftVal <= interTopLeftValNext;
+            if(blockVer == 3)
+	       interOutBlockMvfifo.enq(BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
+            if(interSubMbPartNum == 3)//next step
 	       begin
-		  if(blockABC[0] matches tagged BlockMv .xdata)
-		     begin
-			mvhorfinal = unpack(xdata.mvhor);
-			mvverfinal = unpack(xdata.mvver);
-		     end
-		  else
-		     $display( "ERROR Prediction: interProcessStep unexpected blockABC[0]");
+	          interSubMbPartNum <= 0;
+	          if(interMbPartNum == 3)
+	             begin
+		        interMbPartNum <= 0;
+		        allDone = True;
+		        interNewestMvNext = 16;
+	             end
+	          else
+	             interMbPartNum <= interMbPartNum+1;
 	       end
+            else
+	       interSubMbPartNum <= interSubMbPartNum+1;
+            if(interNewestMvNext > 0)
+	       interNewestMv <= interNewestMvNext;
+ 
+            // Check to see if we are done. 
+            
+	    if(allDone)
+	       interStepCount <= 0;
 	    else
-	       begin
-		  if(blockABC[1] matches tagged BlockMv .xdata)
-		     begin
-			mvhorfinal = unpack(xdata.mvhor);
-			mvverfinal = unpack(xdata.mvver);
-		     end
-		  else
-		     $display( "ERROR Prediction: interProcessStep unexpected blockABC[1]");
-	       end
-	 end
-      Bit#(2) tempBShor = 0;//bS calculation
-      Bit#(2) tempBSver = 0;
-      if(interLeftVal[blockVer] matches tagged BlockMv .xdata)
-	 begin
-	    if(xdata.nonZeroTransCoeff == 1)
-	       tempBShor = 2;
-	    else
-	       begin
-		  if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
-		     tempBShor = 1;
-		  else
-		     tempBShor = 0;
-	       end
-	 end
-      else
-	 tempBShor = 3;
-      if(interTopVal[blockHor] matches tagged BlockMv .xdata)
-	 begin
-	    if(xdata.nonZeroTransCoeff == 1)
-	       tempBSver = 2;
-	    else
-	       begin
-		  if(xdata.refIdx!=refIndex || absDiffGEFour14(mvhorfinal,xdata.mvhor) || absDiffGEFour12(mvverfinal,xdata.mvver))
-		     tempBSver = 1;
-		  else
-		     tempBSver = 0;
-	       end
-	 end
-      else
-	 tempBSver = 3;
-      interBSfifo.enq(tuple2(tempBShor,tempBSver));
-      Vector#(5,InterBlockMv) interTopValNext = interTopVal;//update inter*Val
-      Vector#(4,InterBlockMv) interLeftValNext = interLeftVal;
-      Vector#(4,InterBlockMv) interTopLeftValNext = interTopLeftVal;
-      interLeftValNext[blockVer] = (BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
-      interTopValNext[blockHor] = (BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
-      interTopLeftValNext[blockVer] = interTopVal[blockHor];
-      interTopVal <= interTopValNext;
-      interLeftVal <= interLeftValNext;
-      interTopLeftVal <= interTopLeftValNext;
-      if(blockVer == 3)
-	 interOutBlockMvfifo.enq(BlockMv {refIdx:refIndex,mvhor:mvhorfinal,mvver:mvverfinal,nonZeroTransCoeff:0});
-      if(interSubMbPartNum == 3)//next step
-	 begin
-	    interSubMbPartNum <= 0;
-	    if(interMbPartNum == 3)
-	       begin
-		  interMbPartNum <= 0;
-		  interStepCount <= 0;
-		  interNewestMvNext = 16;
-	       end
-	    else
-	       interMbPartNum <= interMbPartNum+1;
-	 end
-      else
-	 interSubMbPartNum <= interSubMbPartNum+1;
-      if(interNewestMvNext > 0)
-	 interNewestMv <= interNewestMvNext;
+	       interStepCount <= 1;
+
+	    $display( "Trace Prediction: interProcessStep final %h %h %h %h %h %h %h",interstate,interStepCount,interMbPartNum,interSubMbPartNum,mvhorfinal,mvverfinal,interNewestMvNext);
+
+       end
    endrule
 
 
