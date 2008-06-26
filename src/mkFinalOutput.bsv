@@ -65,21 +65,25 @@ module mkFinalOutput( IFinalOutput );
       index <= index + 4;
       if(infifo.first() matches tagged YUV .xdata)
 	 begin
+            $display("OUT %h", xdata[31:24]);
+            $display("OUT %h", xdata[23:16]);
+            $display("OUT %h", xdata[15:8]);
+            $display("OUT %h", xdata[7:0]);
             if( xdata[7:0] != rfile.sub(index))
               begin
-                $display("ccl5finalout ERROR %h, index %d", xdata[7:0], index);
+                $display("mkFinalOutput: ccl5finalout ERROR %h, index %d", xdata[7:0], index);
               end
             if( xdata[15:8] != rfile.sub(index + 1))
               begin
-                $display("ccl5finalout ERROR %h, index %d", xdata[15:8], index + 1);
+                $display("mkFinalOutput: ccl5finalout ERROR %h, index %d", xdata[15:8], index + 1);
               end
             if( xdata[23:16] != rfile.sub(index+2))
               begin
-                $display("ccl5finalout ERROR %h, index %d", xdata[23:16], index+2);
+                $display("mkFinalOutput: ccl5finalout ERROR %h, index %d", xdata[23:16], index+2);
               end
             if( xdata[31:24] != rfile.sub(index+3))
               begin
-                $display("ccl5finalout ERROR %h, index %d", xdata[31:24], index+3);
+                $display("mkFinalOutput: ccl5finalout ERROR %h, index %d", xdata[31:24], index+3);
               end
 	    infifo.deq();
 	 end

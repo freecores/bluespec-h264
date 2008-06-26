@@ -14,7 +14,7 @@ import mkInterpolator::*;
 import FIFO::*;
 import FIFOF::*;
 import Vector::*;
-
+import RegFile::*;
 import Connectable::*;
 import GetPut::*;
 import ClientServer::*;
@@ -187,7 +187,8 @@ module mkPrediction( IPrediction );
    Reg#(Bit#(2)) interPassingCount <- mkReg(0);
    Reg#(Vector#(4,Bit#(4))) interRefIdxVector <- mkRegU();
    Reg#(Vector#(4,Bit#(2))) interSubMbTypeVector <- mkRegU();
-   RFile1#(Bit#(4),Tuple2#(Bit#(14),Bit#(12))) interMvFile <- mkRFile1Full();
+   // Fix this at some point
+   RegFile#(Bit#(4),Tuple2#(Bit#(14),Bit#(12))) interMvFile <- mkRegFileFull();
    Reg#(Bit#(15)) interMvDiffTemp <- mkReg(0);
    FIFO#(Tuple2#(Bit#(15),Bit#(13))) interMvDiff <- mkFIFO;
    Reg#(Bit#(5)) interNewestMv <- mkReg(0);
