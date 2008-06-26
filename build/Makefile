@@ -1,7 +1,7 @@
 #=======================================================================
 # 6.375 Makefile for bsc-compile
 #-----------------------------------------------------------------------
-# $Id: Makefile,v 1.3 2008-06-26 17:52:51 jamey.hicks Exp $
+# $Id: Makefile,v 1.4 2008-06-26 17:57:18 jamey.hicks Exp $
 #
 
 default : all
@@ -63,7 +63,7 @@ BSC_COMP = bsc
 #BSC_OPTS = -u -show-module-use -verilog -keep-fires -aggressive-conditions \
 #           -relax-method-earliness -relax-method-urgency -v
 
-BSC_OPTS = -u -v -verilog -aggressive-conditions
+BSC_OPTS = -u -v -sim -aggressive-conditions
 
 # Copy over the bluespec source
 
