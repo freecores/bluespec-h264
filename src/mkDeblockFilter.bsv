@@ -367,16 +367,16 @@ module mkDeblockFilter( IDeblockFilter );
 
    Reg#(Bit#(6)) cleanup_state <- mkReg(0);
 
-   Vector#(4, FIFO#(Bit#(32))) rowToColumnStore <- replicateM(mkFIFO);
+   Vector#(4, FIFO#(Bit#(32))) rowToColumnStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) rowToColumnState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkFIFO(); // The third bit 1 is to rotate the damned 
+   FIFO#(Tuple2#(Bit#(4),Bit#(1))) rowToColumnStoreBlock <- mkSizedFIFO(3); // The third bit 1 is to rotate the damned 
                                                                               // last left vector block
    FIFO#(Tuple2#(Bit#(4), Bit#(32))) verticalFilterBlock <- mkFIFO();
 
    Reg#(Bit#(2)) columnState <- mkReg(0);
-   Vector#(4, FIFO#(Bit#(32))) columnToRowStore <- replicateM(mkFIFO);
+   Vector#(4, FIFO#(Bit#(32))) columnToRowStore <- replicateM(mkSizedFIFO(3));
    Reg#(Bit#(2)) columnToRowState <- mkReg(0);
-   FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO(); 
+   FIFO#(Tuple2#(Bit#(4), Bit#(1))) columnToRowStoreBlock <- mkFIFO; 
 
    Reg#(Bit#(2)) columnNumber <- mkReg(0);      
  
@@ -385,8 +385,6 @@ module mkDeblockFilter( IDeblockFilter );
    Reg#(Bit#(32)) fifo_empty_count <- mkReg(0);
    Reg#(Bit#(32)) total_cycles <- mkReg(0);
 
-   //-----------------------------------------------------------
-   // Rules
 
    rule incr;
      total_cycles <= total_cycles + 1;
