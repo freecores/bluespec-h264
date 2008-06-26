@@ -17,7 +17,8 @@ foreach(@h264files)
 {
    chomp($_);
  
-  print $_;
+  print $_; 
+  print " ";
   `cp ./h264/$_  input.264`;
   system("wc input.264 | awk \'{printf(\"%08x\\n%08x\\n%08x\\n%08x\\n\", \$3, \$3, \$3, \$3)}\' > input_size.hex");
   `perl hexfilegen.pl input.264`;
@@ -26,5 +27,6 @@ foreach(@h264files)
   `./decoder/bin/ldecod.exe -i input.264 -o out_gold.yuv`;
   $out=`diff -q out_gold.yuv out_hw.yuv`;
   print $out;
+  print "\n";
 }
 
