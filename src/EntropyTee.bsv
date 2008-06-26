@@ -6,10 +6,13 @@ import H264Types::*;
 module mkEntropyTee#(Get#(EntropyDecOT) inputData, Put#(EntropyDecOT) outputData, String prefix) ();
 
  rule processDisplay;
-   let dataIn <- inputData.get();
+   let dataIn <- inputData.get(); 
    outputData.put(dataIn);
-   $write(prefix);
+   $write(prefix)
+   $write("BIN ")
+   $display("%x", pack(data));
 
+   $write(prefix);
    case (dataIn) matches
      tagged  NewUnit .nu: $display("NewUnit: %d", nu);
      tagged  SPSseq_parameter_set_id .data: $display("SPSseq_parameter_set_id: %d",data);
