@@ -30,7 +30,7 @@ Integer prediction_predictedfifo_size = 16;
 Integer interpolator_reqfifoLoad_size = 4;
 Integer interpolator_reqfifoWork_size = 8;
 Integer interpolator_memRespQ_size = 4;
-Integer deblockFilter_infifo_size = 32;
+Integer deblockFilter_infifo_size = 4;
 Integer bufferControl_infifo_size = 2;
 
 
